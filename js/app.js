@@ -18,8 +18,15 @@
   const load = (k, def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch (e) { return def; } };
   const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
 
+  const PERSONA = {
+    rep: ['KA', 'Karim', 'Sales Rep · UAE · Multi-brand'],
+    mgr: ['BK', 'Bahaa', 'Sales Manager · UAE'],
+    adm: ['FJ', 'Fouad', 'Medical Affairs · Admin']
+  };
+
   const S = {
     view: 'home',
+    navOpen: false,
     theme: document.documentElement.getAttribute('data-theme') || 'light',
     cat: 'Dosing & reconstitution',
     chat: null,
@@ -58,16 +65,43 @@
     return ov;
   }
   function closeModal() { const o = document.querySelector('.overlay'); if (o) o.remove(); }
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeModal(); closeProfile(); } });
 
   const prodDot = (p) => dot(PRODUCTS[p].color, 9);
 
-  function toggleTheme() {
-    S.theme = S.theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', S.theme);
-    try { localStorage.setItem('merz_theme', S.theme); } catch (e) {}
+  function setTheme(t) {
+    S.theme = t;
+    document.documentElement.setAttribute('data-theme', t);
+    try { localStorage.setItem('merz_theme', t); } catch (e) {}
     render();
+    if (document.getElementById('popov')) openProfile(); // keep menu in sync
   }
+
+  /* ------------------------------------------------------------ profile menu */
+  function profileMenuHtml() {
+    const role = roleOfView(S.view), p = PERSONA[role];
+    const seg = [['rep', 'users', 'Rep'], ['mgr', 'barChart', 'Manager'], ['adm', 'settings', 'Admin']];
+    return `
+      <div class="pm-head"><div class="av">${p[0]}</div><div><div class="nm">${p[1]}</div><div class="rl">${p[2]}</div></div></div>
+      <div class="pm-div"></div>
+      <div class="pm-sec"><div class="pm-lbl">View as</div><div class="pm-opts">
+        ${seg.map((s) => `<button class="pm-opt ${role === s[0] ? 'on' : ''}" data-action="persona" data-p="${s[0]}">${ic(s[1], 16)} ${s[2]}${role === s[0] ? `<span class="chk">${ic('check', 15)}</span>` : ''}</button>`).join('')}
+      </div></div>
+      <div class="pm-div"></div>
+      <div class="pm-sec"><div class="pm-lbl">Appearance</div><div class="seg">
+        <button class="segbtn ${S.theme === 'light' ? 'on' : ''}" data-action="settheme" data-t="light">${ic('sun', 15)} Light</button>
+        <button class="segbtn ${S.theme === 'dark' ? 'on' : ''}" data-action="settheme" data-t="dark">${ic('moon', 15)} Dark</button>
+      </div></div>`;
+  }
+  function openProfile() {
+    closeProfile();
+    const ov = document.createElement('div');
+    ov.className = 'pop-overlay'; ov.id = 'popov';
+    ov.innerHTML = '<div class="profile-menu">' + profileMenuHtml() + '</div>';
+    ov.addEventListener('click', (e) => { if (e.target === ov) closeProfile(); });
+    document.body.appendChild(ov);
+  }
+  function closeProfile() { const o = document.getElementById('popov'); if (o) o.remove(); }
 
   /* =====================================================================
      ANSWER ENGINE
@@ -106,7 +140,7 @@
   /* =====================================================================
      NAVIGATION
      ===================================================================== */
-  function go(view) { S.view = view; render(); window.scrollTo(0, 0); const m = $('.main'); if (m) m.scrollTop = 0; }
+  function go(view) { S.view = view; S.navOpen = false; render(); window.scrollTo(0, 0); const m = $('.main'); if (m) m.scrollTop = 0; }
 
   function askQuestion(text, forcedEntryId) {
     text = (text || '').trim();
@@ -114,7 +148,7 @@
     if (!S.chat || !S.chat.turns) S.chat = { turns: [] };
     const turn = { question: text, resolved: null, mode: 'hcp', drawerOpen: false };
     S.chat.turns.push(turn);
-    S.view = 'chat';
+    S.view = 'chat'; S.navOpen = false;
     render();
     setTimeout(() => {
       turn.resolved = resolve(text, forcedEntryId);
@@ -122,7 +156,7 @@
       const m = $('.main'); if (m) m.scrollTop = m.scrollHeight;
     }, 750);
   }
-  function newQuestion() { S.chat = null; S.view = 'home'; render(); setTimeout(() => { const i = $('#askInput'); if (i) i.focus(); }, 30); }
+  function newQuestion() { S.chat = null; S.view = 'home'; S.navOpen = false; render(); setTimeout(() => { const i = $('#askInput'); if (i) i.focus(); }, 30); }
 
   const roleOfView = (v) => (v === 'mgr' ? 'mgr' : v === 'adm' ? 'adm' : 'rep');
 
@@ -131,9 +165,10 @@
      ===================================================================== */
   function sidebar(role, active, activeProduct) {
     const repNav = [['home', 'home', 'Home'], ['chat', 'chat', 'Chat history'], ['lib', 'library', 'Library']];
-    let badge = ['KA', 'Karim', 'Sales Rep · UAE · Multi-brand'], showProds = true, gate = '';
-    if (role === 'mgr') { badge = ['BK', 'Bahaa', 'Sales Manager · UAE']; showProds = false; gate = `<div class="gate"><a data-action="nav" data-view="mgr" class="on"><span class="ic">${ic('barChart', 17)}</span> Team Pulse</a></div>`; }
-    else if (role === 'adm') { badge = ['FJ', 'Fouad', 'Medical Affairs · Admin']; showProds = false; gate = `<div class="gate"><a data-action="nav" data-view="mgr"><span class="ic">${ic('barChart', 17)}</span> Team Pulse</a><a data-action="nav" data-view="adm" class="on"><span class="ic">${ic('settings', 17)}</span> Admin</a></div>`; }
+    const badge = PERSONA[role];
+    let showProds = true, gate = '';
+    if (role === 'mgr') { showProds = false; gate = `<div class="gate"><a data-action="nav" data-view="mgr" class="on"><span class="ic">${ic('barChart', 17)}</span> Team Pulse</a></div>`; }
+    else if (role === 'adm') { showProds = false; gate = `<div class="gate"><a data-action="nav" data-view="mgr"><span class="ic">${ic('barChart', 17)}</span> Team Pulse</a><a data-action="nav" data-view="adm" class="on"><span class="ic">${ic('settings', 17)}</span> Admin</a></div>`; }
 
     const navHtml = repNav.map((n) =>
       `<a data-action="nav" data-view="${n[0]}" class="${active === n[0] ? 'on' : ''}"><span class="ic">${ic(n[1], 17)}</span> ${n[2]}</a>`
@@ -151,18 +186,20 @@
       <button class="newq" data-action="newq">${ic('plus', 16)} New question</button>
       <div class="nav">${navHtml}${gate}</div>
       ${prodHtml}
-      <div class="rolebadge"><div class="av">${badge[0]}</div><div><div class="nm">${badge[1]}</div><div class="rl">${badge[2]}</div></div></div>
+      <div class="rolebadge" data-action="profile" style="cursor:pointer"><div class="av">${badge[0]}</div><div><div class="nm">${badge[1]}</div><div class="rl">${badge[2]}</div></div></div>
     </aside>`;
   }
 
   function appbar(role) {
-    const seg = [['rep', 'users', 'Rep'], ['mgr', 'barChart', 'Manager'], ['adm', 'settings', 'Admin']];
     return `<header class="appbar">
-      <div class="persona">${seg.map((s) => `<button class="pbtn ${role === s[0] ? 'on' : ''}" data-action="persona" data-p="${s[0]}">${ic(s[1], 16)}<span>${s[2]}</span></button>`).join('')}</div>
+      <div class="appbar-left">
+        <button class="tbtn hamburger" data-action="togglenav" title="Menu">${ic('panelLeft', 18)}</button>
+        <span class="appbar-brand">MERZ</span>
+      </div>
       <div class="appbar-right">
         <span class="appbar-env">UAE · Pilot</span>
-        <button class="tbtn" data-action="theme" title="Toggle light / dark">${ic(S.theme === 'dark' ? 'sun' : 'moon', 18)}</button>
         <button class="tbtn" data-action="bell" title="Notifications">${ic('bell', 18)}<span class="b"></span></button>
+        <button class="avatarbtn" data-action="profile" title="Profile &amp; settings">${PERSONA[role][0]}</button>
       </div></header>`;
   }
 
@@ -328,12 +365,13 @@
         ).join('')}</div>`
       : '';
 
+    const backdrop = (active.resolved && active.resolved.entry && active.drawerOpen) ? '<div class="drawer-backdrop" data-action="drawer"></div>' : '';
     return `<div class="chatlayout"><div class="chatmain">
         <button class="backbtn" data-action="newq">${ic('arrowLeft', 15)} New question</button>
         ${history}${body}
         <div class="ask"><input id="askInput" placeholder="Ask a follow-up${active.resolved && active.resolved.entry ? ' about ' + PRODUCTS[active.resolved.entry.product].name : ''}..." autocomplete="off"><span class="mic" data-action="mic">${ic('mic', 18)}</span><span class="go" data-action="asksend">${ic('send', 18)}</span></div>
         <div class="voicehint">${ic('volume', 12)} Voice transcribes to text for your confirmation before sending.</div>
-      </div>${drawer}</div>`;
+      </div>${backdrop}${drawer}</div>`;
   }
 
   /* =====================================================================
@@ -446,7 +484,7 @@
         <div class="stat"><div class="lbl mono">ASSESSMENT COMPLETION · YTD</div><div class="big">72%</div><div class="sub">1,685 of 2,340 assigned completed · 655 pending</div></div>
         <div class="stat"><div class="lbl mono">CERTIFICATION PASS RATE</div><div class="big">11 / 17</div><div class="sub">80% required per applicable brand</div></div></div>
       <div class="panel"><h3>Reps <span class="flt" data-action="mgrfilter" data-f="Country">Country: UAE ${ic('chevronDown', 12)}</span></h3>
-        <table><tr><th>Rep</th><th>Profile</th><th>Questions (30d)</th><th>Completion (this quarter)</th><th>Last active</th><th>Certification</th><th>Next assessment</th></tr>${rows}</table></div>
+        <div class="tablewrap"><table><tr><th>Rep</th><th>Profile</th><th>Questions (30d)</th><th>Completion (this quarter)</th><th>Last active</th><th>Certification</th><th>Next assessment</th></tr>${rows}</table></div></div>
       <div class="mgr-grid">
         <div class="panel"><h3>Team knowledge signals</h3>${signals}</div>
         <div><div class="panel" style="margin-bottom:13px"><h3>Competitive pressure (30d)</h3>${comp}</div>
@@ -496,7 +534,7 @@
           <div class="arow"><span style="color:var(--gray);font-size:11px">Resolving a gap re-runs the original questions, then notifies every rep who asked. Separate metric from assessment completion.</span></div></div>
         <div class="panel"><h3>Compliance flags <span class="flt">Per brand ${ic('chevronDown', 12)}</span></h3>${compliance}</div>
         <div class="panel"><h3>Users <span class="flt">Country: All ${ic('chevronDown', 12)}</span></h3>
-          <table><tr><th>User</th><th>Country</th><th>Profile</th><th>Completion (quarter)</th><th>Certification</th><th></th></tr>${users}</table>
+          <div class="tablewrap"><table><tr><th>User</th><th>Country</th><th>Profile</th><th>Completion (quarter)</th><th>Certification</th><th></th></tr>${users}</table></div>
           <div style="margin-top:10px"><button class="btn-dark" data-action="adduser">${ic('userPlus', 13)} Add user</button></div></div></div>
       <div class="callout"><b>Admin:</b> completion (engagement) separated from certification (performance). AI draft questions go through Review, never bulk approval. Write an answer to resolve a content gap and watch the queue count drop. Add or edit users live.</div>`;
   }
@@ -660,8 +698,11 @@
      ===================================================================== */
   const ACTIONS = {
     nav: (d) => go(d.view),
-    persona: (d) => go({ rep: 'home', mgr: 'mgr', adm: 'adm' }[d.p]),
-    theme: () => toggleTheme(),
+    persona: (d) => { closeProfile(); go({ rep: 'home', mgr: 'mgr', adm: 'adm' }[d.p]); },
+    profile: () => { if (document.getElementById('popov')) closeProfile(); else openProfile(); },
+    settheme: (d) => setTheme(d.t),
+    togglenav: () => { S.navOpen = !S.navOpen; render(); },
+    closenav: () => { S.navOpen = false; render(); },
     newq: () => newQuestion(),
     cat: (d) => { S.cat = d.cat; render(); },
     ask: (d) => askQuestion(d.q || (d.entry && (KB.concat(OBJECTIONS).find((e) => e.id === d.entry) || {}).q), d.entry),
@@ -752,7 +793,7 @@
       if (last.resolved && last.resolved.entry) activeProduct = last.resolved.entry.product;
     }
     const content = (VIEWS[S.view] || viewHome)();
-    app().innerHTML = `<div class="shell">${sidebar(role, active, activeProduct)}<div class="workarea">${appbar(role)}<main class="main">${content}</main></div></div>`;
+    app().innerHTML = `<div class="shell${S.navOpen ? ' nav-open' : ''}">${sidebar(role, active, activeProduct)}<div class="nav-backdrop" data-action="closenav"></div><div class="workarea">${appbar(role)}<main class="main">${content}</main></div></div>`;
     if (S.view === 'lib') { const i = $('#libInput'); if (i && S.lib.q) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
   }
 

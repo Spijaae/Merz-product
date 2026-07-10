@@ -18,8 +18,11 @@ against a mock knowledge base; interactions persist in `localStorage`.
   logo. **Light** = black brand on white; **dark** = white brand on black. Toggle in the
   top bar (persists across reloads). Danger/PV signals stay prominent via inversion.
 - **Lucide icons** throughout (inlined from `lucide-static`, so it stays offline-capable).
-- **Persona switch** (Rep / Manager / Admin) in the top bar replaces the old demo tabs,
-  reflecting the plan's role-gated access.
+- **Profile menu** (open from the top-bar avatar or the sidebar role badge) holds both the
+  **View as** persona switch (Rep / Manager / Admin) and the **Appearance** light/dark control.
+- **Responsive, field-first** — off-canvas sidebar with a hamburger on phones, the chat source
+  drawer becomes a full-screen bottom sheet at/below tablet width, tables scroll horizontally,
+  and grids collapse to a single column. Usable one-handed on a phone; no horizontal overflow.
 
 ## Run it
 
