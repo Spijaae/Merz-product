@@ -2,26 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Merz Product Expert | Working Demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Merz Product Expert</title>
+<meta name="theme-color" content="#0A0A0A">
 <link rel="stylesheet" href="css/styles.css">
+<script>
+  // set theme before first paint to avoid a flash
+  (function () {
+    try {
+      var t = localStorage.getItem('merz_theme') || 'light';
+      document.documentElement.setAttribute('data-theme', t);
+    } catch (e) { document.documentElement.setAttribute('data-theme', 'light'); }
+  })();
+</script>
 </head>
 <body>
-
-<div class="switcher">
-  <div class="title">Merz Product Expert · working demo</div>
-  <div class="tabs">
-    <button class="tab active" data-view="home">Rep · Home</button>
-    <button class="tab" data-view="chat">Rep · Chat</button>
-    <button class="tab" data-view="lib">Rep · Library</button>
-    <button class="tab" data-view="mgr">Manager</button>
-    <button class="tab" data-view="adm">Admin</button>
-  </div>
-  <div class="note">Functional demo — ask a question, get a source-grounded answer, file an adverse event, search the library, run the manager &amp; admin flows.</div>
-</div>
-
-<div class="frame visible" id="app"></div>
-
+<div id="app"></div>
+<script src="js/icons.js"></script>
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 </body>

@@ -11,6 +11,16 @@ against a mock knowledge base; interactions persist in `localStorage`.
 > All product content is **fictional demo data** styled to look like approved Merz sources.
 > It is not real medical, dosing, or promotional information.
 
+## Design (per the Merz build plan, Part A1 branding)
+
+- **Full-screen app** — no demo chrome or outer frame; the interface fills the viewport.
+- **Merz identity, monochrome** — a single neutral scale derived from the black/white Merz
+  logo. **Light** = black brand on white; **dark** = white brand on black. Toggle in the
+  top bar (persists across reloads). Danger/PV signals stay prominent via inversion.
+- **Lucide icons** throughout (inlined from `lucide-static`, so it stays offline-capable).
+- **Persona switch** (Rep / Manager / Admin) in the top bar replaces the old demo tabs,
+  reflecting the plan's role-gated access.
+
 ## Run it
 
 Open `index.html` in any modern browser (double-click it, or serve the folder):
@@ -51,11 +61,12 @@ python3 -m http.server 8000   # then open http://localhost:8000
 ## Structure
 
 ```
-index.html        # shell + top view switcher
-css/styles.css    # design system (extended from the v5 prototype)
+index.html        # full-screen shell + theme boot
+css/styles.css    # monochrome light/dark design system
+js/icons.js       # inlined Lucide icon subset + icon() helper
 js/data.js        # mock knowledge base, documents, reps, admin data
-js/app.js         # state, routing, answer engine, views, modals
+js/app.js         # state, routing, answer engine, views, modals, theme/persona
 ```
 
-Persisted keys (`localStorage`): `merz_saved`, `merz_dismissed`, `merz_pv`,
-`merz_gaps`, `merz_users`. Clear them to reset the demo.
+Persisted keys (`localStorage`): `merz_theme`, `merz_saved`, `merz_dismissed`,
+`merz_pv`, `merz_gaps`, `merz_users`. Clear them to reset the demo.

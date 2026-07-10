@@ -12,25 +12,25 @@
     xeomin: {
       id: 'xeomin', name: 'Xeomin', code: 'NTX', letter: 'X',
       category: 'Neurotoxin', cat2: 'NEUROTOXIN · NTX',
-      color: 'var(--xeomin)', bg: 'var(--xeomin-bg)', reviewed: '3 Jul',
+      color: 'var(--p1)', bg: 'var(--p1-bg)', reviewed: '3 Jul',
       spark: 'What is the onset time for Xeomin?'
     },
     belotero: {
       id: 'belotero', name: 'Belotero', code: 'HA', letter: 'B',
       category: 'HA Filler', cat2: 'HA FILLER · HA',
-      color: 'var(--belotero)', bg: 'var(--belotero-bg)', reviewed: '7 Jul',
+      color: 'var(--p2)', bg: 'var(--p2-bg)', reviewed: '7 Jul',
       portfolio: true, spark: 'Which Belotero for tear troughs?'
     },
     radiesse: {
       id: 'radiesse', name: 'Radiesse', code: 'CaHA', letter: 'R',
       category: 'Biostimulator', cat2: 'BIOSTIMULATOR · CAHA',
-      color: 'var(--radiesse)', bg: 'var(--radiesse-bg)', reviewed: '28 Jun',
+      color: 'var(--p3)', bg: 'var(--p3-bg)', reviewed: '28 Jun',
       spark: 'Can Radiesse be diluted for skin quality?'
     },
     ultherapy: {
       id: 'ultherapy', name: 'Ultherapy', code: 'MFU', letter: 'U',
       category: 'Ultrasound Lift', cat2: 'ULTRASOUND LIFT · MFU',
-      color: 'var(--ultherapy)', bg: 'var(--ultherapy-bg)', reviewed: '28 Jun',
+      color: 'var(--p4)', bg: 'var(--p4-bg)', reviewed: '28 Jun',
       spark: 'How many Ultherapy sessions are needed?'
     }
   };
