@@ -507,9 +507,142 @@
     { name: 'Ultherapy pool', preset: 18, ai: 22 }
   ];
 
+  /* =========================================================================
+     PART B — Assessment & certification module (data model)
+     All questions are FICTIONAL demo content grounded in the mock library.
+     ========================================================================= */
+
+  /* Two rep profiles (Addendum A). 50 questions / quarter. */
+  const PROFILES = {
+    mb: { id: 'mb', label: 'Multi-brand', letter: 'MULTI', brands: ['radiesse', 'xeomin', 'belotero'], total: 50, split: { radiesse: 20, xeomin: 15, belotero: 15 } },
+    uo: { id: 'uo', label: 'Ultherapy-only', letter: 'ULT', brands: ['ultherapy'], total: 50, split: { ultherapy: 50 } }
+  };
+
+  /* Question pool config (mix = % preset vs AI), admin-adjustable (B4). */
+  const POOL_CONFIG = {
+    radiesse: { preset: 32, ai: 41, mix: 55, dist: { easy: 25, medium: 45, hard: 30 } },
+    xeomin: { preset: 28, ai: 30, mix: 55, dist: { easy: 25, medium: 45, hard: 30 } },
+    belotero: { preset: 24, ai: 28, mix: 50, dist: { easy: 25, medium: 45, hard: 30 } },
+    ultherapy: { preset: 18, ai: 22, mix: 50, dist: { easy: 30, medium: 45, hard: 25 } }
+  };
+
+  /* Question bank. type MCQ; source_ref for provenance (B3); origin preset/AI;
+     status active/draft (AI drafts await admin review, B4/G). */
+  const QUESTIONS = [
+    // ---- Radiesse
+    { id: 'q-rad-1', product: 'radiesse', topic: 'Contraindications', difficulty: 'hard', type: 'mcq', origin: 'preset', status: 'active', country: 'UAE',
+      stem: 'A patient presents with an active inflamed lesion at the intended treatment site. Per the approved information, what is the correct action for Radiesse?',
+      options: ['Proceed at a lower volume', 'Do not treat — active infection/inflammation at the site is a contraindication', 'Pre-treat with antibiotics and inject same day', 'Dilute with extra lidocaine and proceed'],
+      correct: 1, explanation: 'Radiesse is contraindicated in the presence of infection or inflammation at the treatment site.', source_ref: 'Radiesse UAE PI · Page 3' },
+    { id: 'q-rad-2', product: 'radiesse', topic: 'Administration', difficulty: 'medium', type: 'mcq', origin: 'preset', status: 'active', country: 'UAE',
+      stem: 'Which statement about mixing Radiesse with lidocaine is consistent with the approved administration guidance?',
+      options: ['It is not permitted under any circumstances', 'It may be mixed with lidocaine according to the described procedure', 'It must always be mixed 1:1 with lidocaine', 'Lidocaine changes the approved indication'],
+      correct: 1, explanation: 'Radiesse may be mixed with lidocaine per the described administration procedure.', source_ref: 'Radiesse UAE PI · Page 5' },
+    { id: 'q-rad-3', product: 'radiesse', topic: 'Mechanism', difficulty: 'medium', type: 'mcq', origin: 'ai', status: 'draft', country: 'UAE',
+      stem: 'Radiesse works within its approved indications primarily by which mechanism?',
+      options: ['Neuromodulation of muscle', 'Calcium hydroxylapatite acting as a collagen biostimulator', 'Hyaluronic acid volumisation only', 'Focused ultrasound energy'],
+      correct: 1, explanation: 'Radiesse (CaHA) stimulates the body\'s own collagen production within its approved indications.', source_ref: 'Radiesse UAE PI · Page 2' },
+    // ---- Xeomin
+    { id: 'q-xeo-1', product: 'xeomin', topic: 'Reconstitution', difficulty: 'easy', type: 'mcq', origin: 'preset', status: 'active', country: 'UAE',
+      stem: 'Which diluent is used to reconstitute Xeomin?',
+      options: ['Sterile water for injection', 'Preservative-free 0.9% sodium chloride', 'Bacteriostatic saline with preservative', 'Lactated Ringer\'s solution'],
+      correct: 1, explanation: 'Xeomin is reconstituted with preservative-free 0.9% sodium chloride.', source_ref: 'Xeomin UAE PI · Page 5' },
+    { id: 'q-xeo-2', product: 'xeomin', topic: 'Onset', difficulty: 'medium', type: 'mcq', origin: 'preset', status: 'active', country: 'UAE',
+      stem: 'An HCP asks when onset of effect is generally observed after Xeomin injection. The approved answer is:',
+      options: ['Within minutes', 'Generally within the first days after injection', 'Only after 6 weeks', 'Onset is not described in the label'],
+      correct: 1, explanation: 'Onset of effect is generally observed within the first days after injection.', source_ref: 'Xeomin UAE PI · Page 6' },
+    { id: 'q-xeo-3', product: 'xeomin', topic: 'Composition', difficulty: 'hard', type: 'mcq', origin: 'ai', status: 'draft', country: 'UAE',
+      stem: 'Which property distinguishes Xeomin (incobotulinumtoxinA) in its formulation?',
+      options: ['It contains complexing proteins', 'It is free of complexing proteins', 'It requires no reconstitution', 'It is a hyaluronic acid'],
+      correct: 1, explanation: 'Xeomin contains no complexing proteins.', source_ref: 'Xeomin Reconstitution Quick Guide · v2.0' },
+    // ---- Belotero
+    { id: 'q-bel-1', product: 'belotero', topic: 'Portfolio', difficulty: 'easy', type: 'mcq', origin: 'preset', status: 'active', country: 'UAE',
+      stem: 'Belotero Soft is intended for which type of correction?',
+      options: ['Deep volumising of the cheeks', 'Superficial injection for fine lines', 'Bone-level augmentation', 'Neuromodulation of fine lines'],
+      correct: 1, explanation: 'Belotero Soft is developed for superficial injection to treat fine lines.', source_ref: 'Belotero Portfolio Overview · Page 6' },
+    { id: 'q-bel-2', product: 'belotero', topic: 'Product selection', difficulty: 'hard', type: 'mcq', origin: 'preset', status: 'active', country: 'UAE',
+      stem: 'A rep is asked which Belotero product to use for a specific area. The compliant basis for selection is:',
+      options: ['The most expensive product available', 'The rep\'s personal preference', 'The specific treatment area, patient need and locally approved indication', 'Whatever a competitor recommends'],
+      correct: 2, explanation: 'Selection is based on treatment area, patient need and the locally approved indication.', source_ref: 'Belotero UAE PI · Page 2' },
+    { id: 'q-bel-3', product: 'belotero', topic: 'Technology', difficulty: 'medium', type: 'mcq', origin: 'ai', status: 'draft', country: 'UAE',
+      stem: 'The Belotero range is built on which core technology?',
+      options: ['Cohesive Polydensified Matrix (CPM)', 'Calcium hydroxylapatite microspheres', 'Micro-focused ultrasound', 'Botulinum toxin type A'],
+      correct: 0, explanation: 'The Belotero range is built on CPM technology.', source_ref: 'Belotero Product Selection Guide · Page 7' },
+    // ---- Ultherapy
+    { id: 'q-ult-1', product: 'ultherapy', topic: 'Mechanism', difficulty: 'easy', type: 'mcq', origin: 'preset', status: 'active', country: 'UAE',
+      stem: 'Ultherapy delivers which type of energy?',
+      options: ['Radiofrequency', 'Micro-focused ultrasound (MFU)', 'Intense pulsed light', 'Cryolipolysis'],
+      correct: 1, explanation: 'Ultherapy uses micro-focused ultrasound for lifting within its approved indication.', source_ref: 'Ultherapy UAE PI · Page 2' },
+    { id: 'q-ult-2', product: 'ultherapy', topic: 'Treatment plan', difficulty: 'medium', type: 'mcq', origin: 'preset', status: 'active', country: 'UAE',
+      stem: 'How is the number of Ultherapy sessions best described per the approved information?',
+      options: ['Always exactly three sessions', 'Typically a single session, with individualised maintenance', 'A minimum of ten sessions', 'Daily sessions for two weeks'],
+      correct: 1, explanation: 'Ultherapy is typically performed as a single session, with individualised maintenance.', source_ref: 'Ultherapy UAE PI · Page 3' },
+    { id: 'q-ult-3', product: 'ultherapy', topic: 'Results', difficulty: 'medium', type: 'mcq', origin: 'ai', status: 'draft', country: 'UAE',
+      stem: 'Over what timeframe do Ultherapy results typically develop?',
+      options: ['Immediately, within 24 hours', 'Gradually over 2–3 months', 'Only after 2 years', 'Results are permanent from day one'],
+      correct: 1, explanation: 'Results develop gradually over 2–3 months as the natural response builds.', source_ref: 'Ultherapy UAE PI · Page 2' }
+  ];
+
+  /* Certification record for the signed-in rep (Karim, multi-brand). */
+  const REP_CERT = {
+    profile: 'mb',
+    nextDue: '9 Oct 2026',
+    cadence: 3, // months (adaptive: strong performers can move to 6)
+    brands: {
+      radiesse: { status: 'certified', score: 88, certifiedAt: '9 Jul 2026', expiresAt: '9 Oct 2026' },
+      xeomin: { status: 'certified', score: 84, certifiedAt: '9 Jul 2026', expiresAt: '9 Oct 2026' },
+      belotero: { status: 'certified', score: 90, certifiedAt: '9 Jul 2026', expiresAt: '9 Oct 2026' }
+    },
+    history: [
+      { date: '9 Jul 2026', type: 'Recertification', score: 87, result: 'Passed' },
+      { date: '10 Apr 2026', type: 'Recertification', score: 81, result: 'Passed' },
+      { date: '12 Jan 2026', type: 'Baseline (week 1)', score: 68, result: 'Passed' }
+    ]
+  };
+
+  /* Assessment monitor rows (admin B7). Mirrors reps + schedule/cert state. */
+  const ASSESS_MONITOR = [
+    { name: 'Karim A.', profile: 'mb', country: 'UAE', status: 'certified', lastScore: 87, due: '9 Oct 2026', cadence: 3 },
+    { name: 'Sara M.', profile: 'mb', country: 'KSA', status: 'failed', lastScore: 62, due: 'Retake 14 Jul 2026', cadence: 3, focus: 'Xeomin' },
+    { name: 'Nadia F.', profile: 'uo', country: 'KSA', status: 'certified', lastScore: 91, due: '30 Sep 2026', cadence: 6 },
+    { name: 'Omar H.', profile: 'mb', country: 'UAE', status: 'due', lastScore: 79, due: 'Due 12 Jul 2026', cadence: 3 },
+    { name: 'Lina K.', profile: 'mb', country: 'UAE', status: 'baseline', lastScore: null, due: 'Baseline pending', cadence: 3 },
+    { name: 'Yousef R.', profile: 'uo', country: 'UAE', status: 'baseline', lastScore: null, due: 'Not started', cadence: 3 }
+  ];
+
+  /* Most-failed questions + weakest topics for gap analytics (B7). */
+  const MOST_FAILED = [
+    { product: 'radiesse', stem: 'Contraindication with active infection at the site', failRate: 58, n: 40 },
+    { product: 'xeomin', stem: 'Correct reconstitution diluent', failRate: 41, n: 33 },
+    { product: 'belotero', stem: 'Basis for product selection', failRate: 37, n: 28 },
+    { product: 'ultherapy', stem: 'Typical number of sessions', failRate: 29, n: 21 }
+  ];
+  const WEAK_TOPICS = [
+    { topic: 'Radiesse contraindications', pct: 58 },
+    { topic: 'Xeomin composition', pct: 44 },
+    { topic: 'Belotero product selection', pct: 37 },
+    { topic: 'Ultherapy results timeline', pct: 24 }
+  ];
+
+  /* Permission sets (Addendum G): separated, combinable, never one super-role. */
+  const PERMISSION_SETS = [
+    { id: 'content', label: 'Medical Affairs — content review', desc: 'Approve answers, resolve content gaps' },
+    { id: 'pv', label: 'Pharmacovigilance', desc: 'Review and route adverse-event reports' },
+    { id: 'assess', label: 'Assessment / learning admin', desc: 'Question pools, drafts, cadence, thresholds' },
+    { id: 'users', label: 'User & role admin', desc: 'Provision accounts, assign permissions' },
+    { id: 'kb', label: 'Knowledge-base admin', desc: 'Manage the approved document library' }
+  ];
+  const ADMIN_ROLES = [
+    { name: 'Fouad J.', role: 'Medical Affairs', perms: ['content', 'pv', 'assess'] },
+    { name: 'Ahmed A.', role: 'Country lead', perms: ['users', 'assess'] },
+    { name: 'Diana R.', role: 'Marketing', perms: ['content'] }
+  ];
+
   global.MerzData = {
     PRODUCTS, CATEGORIES, CATEGORY_QUESTIONS, KB, OBJECTIONS, OFFLABEL, PV_TERMS,
     DOCS, QUICK_ACCESS, TEAM_ASKED, DYN_CARDS, REPS, KNOWLEDGE_SIGNALS,
-    COMPETITIVE, CONTENT_GAPS, ADMIN_GAPS, COMPLIANCE, ADMIN_USERS, ASSESSMENT_POOLS
+    COMPETITIVE, CONTENT_GAPS, ADMIN_GAPS, COMPLIANCE, ADMIN_USERS, ASSESSMENT_POOLS,
+    PROFILES, POOL_CONFIG, QUESTIONS, REP_CERT, ASSESS_MONITOR, MOST_FAILED, WEAK_TOPICS,
+    PERMISSION_SETS, ADMIN_ROLES
   };
 })(window);

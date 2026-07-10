@@ -11,12 +11,16 @@
   const {
     PRODUCTS, CATEGORIES, CATEGORY_QUESTIONS, KB, OBJECTIONS, OFFLABEL, PV_TERMS,
     DOCS, QUICK_ACCESS, TEAM_ASKED, DYN_CARDS, REPS, KNOWLEDGE_SIGNALS,
-    COMPETITIVE, CONTENT_GAPS, ADMIN_GAPS, COMPLIANCE, ADMIN_USERS, ASSESSMENT_POOLS
+    COMPETITIVE, CONTENT_GAPS, ADMIN_GAPS, COMPLIANCE, ADMIN_USERS, ASSESSMENT_POOLS,
+    PROFILES, POOL_CONFIG, QUESTIONS, REP_CERT, ASSESS_MONITOR, MOST_FAILED, WEAK_TOPICS,
+    PERMISSION_SETS, ADMIN_ROLES
   } = D;
 
   /* ---------------------------------------------------------------- storage */
   const load = (k, def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch (e) { return def; } };
   const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  const TODAY = '10 Jul 2026';
 
   const PERSONA = {
     rep: ['KA', 'Karim', 'Sales Rep · UAE · Multi-brand'],
@@ -24,9 +28,11 @@
     adm: ['FJ', 'Fouad', 'Medical Affairs · Admin']
   };
 
+  const storedAssess = load('merz_assess', null) || {};
   const S = {
     view: 'home',
     navOpen: false,
+    authed: (function () { try { return localStorage.getItem('merz_authed') === '1'; } catch (e) { return false; } })(),
     theme: document.documentElement.getAttribute('data-theme') || 'light',
     cat: 'Dosing & reconstitution',
     chat: null,
@@ -35,8 +41,30 @@
     pv: load('merz_pv', []),
     resolvedGaps: load('merz_gaps', []),
     lib: { q: '', product: 'all', type: 'all', hcpOnly: false, quick: null },
-    users: load('merz_users', null) || ADMIN_USERS.slice()
+    users: load('merz_users', null) || ADMIN_USERS.slice(),
+    adminTab: 'questions',
+    activityDays: 7,
+    mgrCols: load('merz_mgrcols', null) || { q30: true, completion: true, last: true, cert: true, next: true },
+    qFilter: { product: 'all', origin: 'all', status: 'all' },
+    assess: {
+      threshold: storedAssess.threshold != null ? storedAssess.threshold : 80,
+      cert: storedAssess.cert || clone(REP_CERT),
+      pools: storedAssess.pools || clone(POOL_CONFIG),
+      approved: storedAssess.approved || [],
+      retired: storedAssess.retired || [],
+      custom: storedAssess.custom || [],
+      run: null
+    }
   };
+  function saveAssess() {
+    save('merz_assess', { threshold: S.assess.threshold, cert: S.assess.cert, pools: S.assess.pools, approved: S.assess.approved, retired: S.assess.retired, custom: S.assess.custom });
+  }
+  const allQuestions = () => QUESTIONS.concat(S.assess.custom);
+  function qStatus(q) {
+    if (S.assess.retired.indexOf(q.id) !== -1) return 'retired';
+    if (q.origin === 'ai' && q.status === 'draft') return S.assess.approved.indexOf(q.id) !== -1 ? 'active' : 'draft';
+    return q.status;
+  }
 
   /* ---------------------------------------------------------------- helpers */
   const $ = (sel, root) => (root || document).querySelector(sel);
@@ -91,7 +119,9 @@
       <div class="pm-sec"><div class="pm-lbl">Appearance</div><div class="seg">
         <button class="segbtn ${S.theme === 'light' ? 'on' : ''}" data-action="settheme" data-t="light">${ic('sun', 15)} Light</button>
         <button class="segbtn ${S.theme === 'dark' ? 'on' : ''}" data-action="settheme" data-t="dark">${ic('moon', 15)} Dark</button>
-      </div></div>`;
+      </div></div>
+      <div class="pm-div"></div>
+      <div class="pm-sec"><button class="pm-opt" data-action="logout">${ic('logOut', 16)} Sign out</button></div>`;
   }
   function openProfile() {
     closeProfile();
@@ -158,17 +188,17 @@
   }
   function newQuestion() { S.chat = null; S.view = 'home'; S.navOpen = false; render(); setTimeout(() => { const i = $('#askInput'); if (i) i.focus(); }, 30); }
 
-  const roleOfView = (v) => (v === 'mgr' ? 'mgr' : v === 'adm' ? 'adm' : 'rep');
+  const roleOfView = (v) => (v === 'mgr' ? 'mgr' : (v === 'adm' || v === 'assess') ? 'adm' : 'rep');
 
   /* =====================================================================
      SHELL: sidebar + appbar
      ===================================================================== */
   function sidebar(role, active, activeProduct) {
-    const repNav = [['home', 'home', 'Home'], ['chat', 'chat', 'Chat history'], ['lib', 'library', 'Library']];
+    const repNav = [['home', 'home', 'Home'], ['chat', 'chat', 'Chat history'], ['lib', 'library', 'Library'], ['cert', 'award', 'Certification']];
     const badge = PERSONA[role];
     let showProds = true, gate = '';
     if (role === 'mgr') { showProds = false; gate = `<div class="gate"><a data-action="nav" data-view="mgr" class="on"><span class="ic">${ic('barChart', 17)}</span> Team Pulse</a></div>`; }
-    else if (role === 'adm') { showProds = false; gate = `<div class="gate"><a data-action="nav" data-view="mgr"><span class="ic">${ic('barChart', 17)}</span> Team Pulse</a><a data-action="nav" data-view="adm" class="on"><span class="ic">${ic('settings', 17)}</span> Admin</a></div>`; }
+    else if (role === 'adm') { showProds = false; gate = `<div class="gate"><a data-action="nav" data-view="mgr"><span class="ic">${ic('barChart', 17)}</span> Team Pulse</a><a data-action="nav" data-view="assess" class="${active === 'assess' ? 'on' : ''}"><span class="ic">${ic('graduationCap', 17)}</span> Assessments</a><a data-action="nav" data-view="adm" class="${active === 'adm' ? 'on' : ''}"><span class="ic">${ic('settings', 17)}</span> Admin</a></div>`; }
 
     const navHtml = repNav.map((n) =>
       `<a data-action="nav" data-view="${n[0]}" class="${active === n[0] ? 'on' : ''}"><span class="ic">${ic(n[1], 17)}</span> ${n[2]}</a>`
@@ -460,9 +490,20 @@
   const certGroup = (cert) => `<span class="cg">${cert.map((c) => `<span class="c ${c[0]}">${c[1]}</span>`).join('')}</span>`;
   const nextCell = (n) => (typeof n === 'string' ? n : `<span class="st ${n.st}">${n.label}</span>`);
 
+  const MGR_COLS = [
+    { k: 'q30', th: 'Questions (30d)', td: (r) => r.q30 },
+    { k: 'completion', th: 'Completion (this quarter)', td: (r) => r.completion },
+    { k: 'last', th: 'Last active', td: (r) => r.last },
+    { k: 'cert', th: 'Certification', td: (r) => certGroup(r.cert) },
+    { k: 'next', th: 'Next assessment', td: (r) => nextCell(r.next) }
+  ];
+  const parseDays = (s) => { s = s.toLowerCase(); if (s.indexOf('never') >= 0) return 999; if (s.indexOf('just now') >= 0 || s === 'today') return 0; if (s.indexOf('yesterday') >= 0) return 1; const m = s.match(/(\d+)\s*day/); return m ? +m[1] : 0; };
+
   function viewManager() {
+    const cols = MGR_COLS.filter((c) => S.mgrCols[c.k]);
+    const head = `<tr><th>Rep</th><th>Profile</th>${cols.map((c) => `<th>${c.th}</th>`).join('')}</tr>`;
     const rows = REPS.map((r, i) =>
-      `<tr data-action="rep" data-i="${i}" style="cursor:pointer"><td>${r.name}</td><td><span class="profb ${r.profile}">${r.profile === 'mb' ? 'MULTI-BRAND' : 'ULTHERAPY ONLY'}</span></td><td>${r.q30}</td><td>${r.completion}</td><td>${r.last}</td><td>${certGroup(r.cert)}</td><td>${nextCell(r.next)}</td></tr>`
+      `<tr data-action="rep" data-i="${i}" style="cursor:pointer"><td>${r.name}</td><td><span class="profb ${r.profile}">${r.profile === 'mb' ? 'MULTI-BRAND' : 'ULTHERAPY ONLY'}</span></td>${cols.map((c) => `<td>${c.td(r)}</td>`).join('')}</tr>`
     ).join('');
     const signals = KNOWLEDGE_SIGNALS.map((s) =>
       `<div class="topic"><span style="width:165px">${esc(s.topic)}${s.focus ? '<span class="focus">TRAINING FOCUS</span>' : ''}</span><div class="bar-wrap"><div class="bar-fill" style="width:${s.pct}%"></div></div><span class="n">${s.n}</span></div>` +
@@ -470,6 +511,15 @@
     ).join('');
     const gaps = CONTENT_GAPS.map((g) => `<div class="gap"><span>${esc(g.label)}</span><span class="gst ${g.st}">${g.text}</span></div>`).join('');
     const comp = COMPETITIVE.map((c) => `<div class="comp"><span>${esc(c.label)}</span><span class="n">${c.n}</span></div>`).join('');
+
+    const active = REPS.filter((r) => r.q30 > 0 && parseDays(r.last) <= S.activityDays);
+    const inactive = REPS.filter((r) => !(r.q30 > 0 && parseDays(r.last) <= S.activityDays));
+    const adoption = `<div class="panel"><h3>Adoption — named active vs non-active
+        <span class="cfg-inline">Active = asked &ge; 1 question in last <button class="btn-sm sq" data-action="actdays" data-d="-1">&minus;</button> <b>${S.activityDays}</b> <button class="btn-sm sq" data-action="actdays" data-d="1">+</button> days</span></h3>
+      <div class="adopt-grid">
+        <div><div class="adopt-h good">${ic('checkCircle', 14)} Active (${active.length})</div>${active.map((r) => `<div class="adopt-row"><span>${r.name}</span><span class="muted">${r.last}</span></div>`).join('')}</div>
+        <div><div class="adopt-h bad">${ic('alertTriangle', 14)} Needs follow-up (${inactive.length})</div>${inactive.map((r) => `<div class="adopt-row"><span>${r.name}</span><span class="muted">${r.last}</span><button class="btn-sm" data-action="nudge" data-name="${esc(r.name)}">Remind</button></div>`).join('')}</div></div>
+      <div style="font-size:10.5px;color:var(--gray);margin-top:8px">Tracked fields and the activity window are configurable, not hard-coded. Managers follow up with non-users by name.</div></div>`;
 
     return `
       <div class="hero"><div class="date mono">TEAM PULSE · UAE · FRIDAY, JULY 10</div><h1>Team overview</h1><div class="sub">Adoption, knowledge signals, and assessment across your team.</div></div>
@@ -483,13 +533,20 @@
         <div class="stat"><div class="lbl mono">ACTIVE REPS</div><div class="big">15 / 17</div><div class="sub">named below</div></div>
         <div class="stat"><div class="lbl mono">ASSESSMENT COMPLETION · YTD</div><div class="big">72%</div><div class="sub">1,685 of 2,340 assigned completed · 655 pending</div></div>
         <div class="stat"><div class="lbl mono">CERTIFICATION PASS RATE</div><div class="big">11 / 17</div><div class="sub">80% required per applicable brand</div></div></div>
-      <div class="panel"><h3>Reps <span class="flt" data-action="mgrfilter" data-f="Country">Country: UAE ${ic('chevronDown', 12)}</span></h3>
-        <div class="tablewrap"><table><tr><th>Rep</th><th>Profile</th><th>Questions (30d)</th><th>Completion (this quarter)</th><th>Last active</th><th>Certification</th><th>Next assessment</th></tr>${rows}</table></div></div>
+      <div class="panel"><h3>Reps <span class="flt" data-action="mgrfields">${ic('columns', 12)} Configure fields</span></h3>
+        <div class="tablewrap"><table>${head}${rows}</table></div></div>
+      ${adoption}
       <div class="mgr-grid">
         <div class="panel"><h3>Team knowledge signals</h3>${signals}</div>
         <div><div class="panel" style="margin-bottom:13px"><h3>Competitive pressure (30d)</h3>${comp}</div>
           <div class="panel"><h3>Content gaps (visibility)</h3>${gaps}</div></div></div>
-      <div class="callout"><b>Completion vs certification:</b> completion = assigned vs completed (engagement); certification = pass rate against the 80% per-brand bar (performance). Click any rep row for detail. Action strips and filters are interactive.</div>`;
+      <div class="callout"><b>Completion vs certification:</b> completion = assigned vs completed (engagement); certification = pass rate against the 80% per-brand bar (performance). Click any rep row for detail. Fields and the activity window are configurable.</div>`;
+  }
+  function fieldsModal() {
+    openModal(`<div class="mhd"><div><div class="mt">${ic('columns', 20)} Configure tracked fields</div><div class="msub">Show or hide columns — config, not a code change</div></div><button class="x" data-action="close">${ic('x', 20)}</button></div>
+      <div class="mbody"><div class="pm-opts">${MGR_COLS.map((c) => `<button class="pm-opt ${S.mgrCols[c.k] ? 'on' : ''}" data-action="togcol" data-k="${c.k}">${ic(S.mgrCols[c.k] ? 'eye' : 'eyeOff', 15)} ${c.th}${S.mgrCols[c.k] ? `<span class="chk">${ic('check', 15)}</span>` : ''}</button>`).join('')}</div>
+        <div class="mbanner blue" style="margin-top:12px">${ic('info', 16)}<span>Rep and Profile are always shown. Additional data points Ahmed sends can be added here without a code change.</span></div>
+        <div class="mactions"><button class="mbtn primary" data-action="close">Done</button></div></div>`);
   }
 
   /* =====================================================================
@@ -529,14 +586,259 @@
           <div class="arow"><span><b>Multi-brand profile</b> · 50 Q/quarter · 20 RAD / 15 XEO / 15 BEL</span><span class="profb mb">14 USERS</span></div>
           <div class="arow"><span><b>Ultherapy-only profile</b> · 50 Q/quarter · all Ultherapy</span><span class="profb uo">3 USERS</span></div>
           ${pools}
-          <div class="arow"><span>${ic('sparkles', 14)} 12 AI-generated draft questions</span><button class="btn-dark" data-action="reviewdrafts">Review 12 drafts</button></div></div>
+          <div class="arow"><span>${ic('sparkles', 14)} AI-generated draft questions</span><button class="btn-dark" data-action="gotodrafts">${ic('listChecks', 13)} Open question manager</button></div></div>
         <div class="panel"><h3>Content gap queue <span class="flt">Brand: All ${ic('chevronDown', 12)}</span></h3>${gaps}
           <div class="arow"><span style="color:var(--gray);font-size:11px">Resolving a gap re-runs the original questions, then notifies every rep who asked. Separate metric from assessment completion.</span></div></div>
         <div class="panel"><h3>Compliance flags <span class="flt">Per brand ${ic('chevronDown', 12)}</span></h3>${compliance}</div>
         <div class="panel"><h3>Users <span class="flt">Country: All ${ic('chevronDown', 12)}</span></h3>
           <div class="tablewrap"><table><tr><th>User</th><th>Country</th><th>Profile</th><th>Completion (quarter)</th><th>Certification</th><th></th></tr>${users}</table></div>
-          <div style="margin-top:10px"><button class="btn-dark" data-action="adduser">${ic('userPlus', 13)} Add user</button></div></div></div>
-      <div class="callout"><b>Admin:</b> completion (engagement) separated from certification (performance). AI draft questions go through Review, never bulk approval. Write an answer to resolve a content gap and watch the queue count drop. Add or edit users live.</div>`;
+          <div style="margin-top:10px"><button class="btn-dark" data-action="adduser">${ic('userPlus', 13)} Add user</button></div></div>
+        <div class="panel"><h3>Roles &amp; permissions <span class="flt">separated sets</span></h3>
+          ${ADMIN_ROLES.map((r) => `<div class="arow"><span><b>${esc(r.name)}</b> · ${esc(r.role)}</span><span class="permchips">${r.perms.map((pid) => `<span class="permchip">${PERM_SHORT[pid]}</span>`).join('')}</span></div>`).join('')}
+          <div style="margin-top:10px"><button class="btn-dark" data-action="perms">${ic('shieldCheck', 13)} Manage permission sets</button></div>
+          <div style="font-size:10.5px;color:var(--gray);margin-top:6px">Separate sets (content, PV, assessment, users, KB), combinable per person — never one unrestricted role.</div></div></div>
+      <div class="callout"><b>Admin:</b> completion (engagement) separated from certification (performance). Permissions are separated sets, never one super-role. Admin provisions accounts (email + password) — no self-registration. Add or edit users live.</div>`;
+  }
+  const PERM_SHORT = { content: 'Content', pv: 'PV', assess: 'Assessment', users: 'Users', kb: 'KB' };
+  function permsModal() {
+    openModal(`<div class="mhd"><div><div class="mt">${ic('shieldCheck', 20)} Permission sets</div><div class="msub">Combinable per person · never one unrestricted role</div></div><button class="x" data-action="close">${ic('x', 20)}</button></div>
+      <div class="mbody">${PERMISSION_SETS.map((p) => `<div class="permrow"><div><b>${esc(p.label)}</b><div style="font-size:11px;color:var(--gray)">${esc(p.desc)}</div></div><span class="permchip">${PERM_SHORT[p.id]}</span></div>`).join('')}
+        <div class="mbanner blue" style="margin-top:12px">${ic('info', 16)}<span>Each person is granted one or more sets. There is deliberately no single all-access role.</span></div>
+        <div class="mactions"><button class="mbtn primary" data-action="close">Close</button></div></div>`);
+  }
+
+  /* =====================================================================
+     LOGIN / FRONT SCREEN  (Part A1: Merz logo on login & front screen)
+     ===================================================================== */
+  function viewLogin() {
+    return `<div class="loginwrap">
+      <div class="logincard">
+        <div class="login-mark"><span class="l1">MERZ</span><span class="l2">AESTHETICS<span class="reg">&reg;</span></span></div>
+        <div class="login-title">Product Expert</div>
+        <div class="login-sub">Every answer from approved Merz sources.</div>
+        <div class="fld"><label>Work email</label><input id="loginEmail" value="karim@merz.com" autocomplete="username"></div>
+        <div class="fld"><label>Password</label><input id="loginPass" type="password" value="demo-access" autocomplete="current-password"></div>
+        <button class="mbtn primary loginbtn" data-action="login">${ic('logIn', 16)} Sign in</button>
+        <div class="login-note">${ic('lock', 12)} Accounts are provisioned by an administrator. No self-registration.</div>
+        <button class="login-theme" data-action="settheme" data-t="${S.theme === 'dark' ? 'light' : 'dark'}">${ic(S.theme === 'dark' ? 'sun' : 'moon', 14)} ${S.theme === 'dark' ? 'Light' : 'Dark'} appearance</button>
+      </div>
+      <div class="login-foot">Pilot build · UAE · fictional demo data</div>
+    </div>`;
+  }
+
+  /* =====================================================================
+     PART B — REP: My certification + Take assessment
+     ===================================================================== */
+  const brandLetter = (b) => PRODUCTS[b].letter;
+  function certPill(status) {
+    const map = { certified: ['good', 'checkCircle', 'Certified'], failed: ['bad', 'xCircle', 'Failed — retake'], pending: ['warn', 'clock', 'Pending'] };
+    const m = map[status] || map.pending;
+    return `<span class="cpill ${m[0]}">${ic(m[1], 13)} ${m[2]}</span>`;
+  }
+  function viewCert() {
+    const c = S.assess.cert, prof = PROFILES[c.profile];
+    const overallCertified = prof.brands.every((b) => c.brands[b] && c.brands[b].status === 'certified');
+    const cards = prof.brands.map((b) => {
+      const cb = c.brands[b] || { status: 'pending' }, p = PRODUCTS[b];
+      return `<div class="certcard"><div class="hd"><div class="ic" style="background:${p.bg};color:${p.color}">${p.letter}</div><div><div class="nm">${p.name}</div><div class="cat2">${p.cat2}</div></div></div>
+        <div class="certrow"><span>Status</span>${certPill(cb.status)}</div>
+        <div class="certrow"><span>Last score</span><b>${cb.score != null ? cb.score + '%' : '—'}</b></div>
+        <div class="certrow"><span>${cb.status === 'certified' ? 'Valid until' : 'Next attempt'}</span><b>${cb.expiresAt || c.nextDue}</b></div></div>`;
+    }).join('');
+    const history = c.history.map((h) =>
+      `<div class="arow"><span><b>${esc(h.type)}</b> · ${esc(h.date)}</span><span style="display:flex;gap:10px;align-items:center"><span style="color:var(--gray)">${h.score}%</span><span class="st ${h.result === 'Passed' ? 'a' : 'i'}">${h.result}</span></span></div>`
+    ).join('');
+    return `
+      <div class="hero"><div class="date mono">CERTIFICATION · ${prof.label.toUpperCase()}</div><h1>${overallCertified ? 'You are certified' : 'Certification in progress'}</h1>
+        <div class="sub">Document-based product-knowledge assessment. ${prof.total} questions per quarter${prof.id === 'mb' ? ' (20 Radiesse / 15 Xeomin / 15 Belotero)' : ' (all Ultherapy)'}.</div></div>
+      <div class="stats">
+        <div class="stat"><div class="lbl mono">OVERALL</div><div class="big" style="display:flex;align-items:center;gap:8px">${ic(overallCertified ? 'shieldCheck' : 'clock', 22)} ${overallCertified ? 'Certified' : 'In progress'}</div><div class="sub">80% required per applicable brand</div></div>
+        <div class="stat"><div class="lbl mono">NEXT ASSESSMENT DUE</div><div class="big" style="font-size:18px;padding-top:4px">${c.nextDue}</div><div class="sub">${c.cadence}-month cadence${c.cadence === 6 ? ' (extended — strong performer)' : ''}</div></div>
+        <div class="stat"><div class="lbl mono">LAST SCORE</div><div class="big">${c.history[0] ? c.history[0].score + '%' : '—'}</div><div class="sub">${c.history[0] ? c.history[0].type : ''}</div></div>
+      </div>
+      <div class="seclbl mono">CERTIFICATION BY BRAND</div>
+      <div class="certgrid">${cards}</div>
+      <div class="cta-assess"><div><div class="h">Ready to take your assessment?</div><div class="d">A short, source-grounded knowledge check. Auto-scored against the ${S.assess.threshold}% threshold. A fail can be re-taken — this is a training tool, not a gate.</div></div>
+        <button class="mbtn primary" data-action="startassess">${ic('play', 16)} Take assessment</button></div>
+      <div class="seclbl mono">ASSESSMENT HISTORY</div>
+      <div class="panel">${history}</div>
+      <div class="callout"><b>How this works:</b> a baseline assessment is scheduled in your first week (before Merz training) to set a gap reference, then recertification every ${c.cadence} months. Questions come only from the approved document knowledge base.</div>`;
+  }
+
+  /* ---- assessment runner (overlay) --------------------------------------- */
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function startAssess() {
+    const prof = PROFILES[S.assess.cert.profile];
+    let pool = allQuestions().filter((q) => prof.brands.indexOf(q.product) !== -1 && qStatus(q) === 'active');
+    pool = shuffle(pool.slice());
+    const qs = pool.slice(0, Math.min(6, pool.length));
+    S.assess.run = { qs, idx: 0, answers: new Array(qs.length).fill(null), done: false };
+    openAssess();
+  }
+  function openAssess() { closeAssess(); const ov = document.createElement('div'); ov.className = 'assess-overlay'; ov.id = 'assessov'; ov.innerHTML = assessHtml(); document.body.appendChild(ov); }
+  function closeAssess() { const o = document.getElementById('assessov'); if (o) o.remove(); }
+  function reAssess() { const o = document.getElementById('assessov'); if (o) o.innerHTML = assessHtml(); }
+  function scoreRun() {
+    const run = S.assess.run, perBrand = {}; let correct = 0;
+    run.qs.forEach((q, i) => { const ok = run.answers[i] === q.correct; if (ok) correct++; (perBrand[q.product] = perBrand[q.product] || { c: 0, t: 0 }).t++; if (ok) perBrand[q.product].c++; });
+    return { correct, total: run.qs.length, pct: Math.round(correct / run.qs.length * 100), perBrand };
+  }
+  const plusMonths = (m) => (m >= 6 ? '10 Jan 2027' : '10 Oct 2026');
+  function applyResult(res) {
+    const c = S.assess.cert, pass = res.pct >= S.assess.threshold;
+    Object.keys(res.perBrand).forEach((b) => {
+      const pb = res.perBrand[b], bp = Math.round(pb.c / pb.t * 100);
+      c.brands[b] = Object.assign(c.brands[b] || {}, bp >= S.assess.threshold
+        ? { status: 'certified', score: bp, certifiedAt: TODAY, expiresAt: plusMonths(c.cadence) }
+        : { status: 'failed', score: bp });
+    });
+    c.history.unshift({ date: TODAY, type: 'Recertification', score: res.pct, result: pass ? 'Passed' : 'Failed' });
+    if (pass) c.nextDue = plusMonths(c.cadence);
+    saveAssess();
+  }
+  function assessHtml() {
+    const run = S.assess.run;
+    if (!run) return '';
+    if (run.done) {
+      const res = scoreRun(), pass = res.pct >= S.assess.threshold;
+      const brands = Object.keys(res.perBrand).map((b) => { const pb = res.perBrand[b], bp = Math.round(pb.c / pb.t * 100); return `<div class="abrk"><span class="l">${brandLetter(b)}</span><span>${PRODUCTS[b].name}</span><div class="bar-wrap"><div class="bar-fill" style="width:${bp}%"></div></div><b>${bp}%</b></div>`; }).join('');
+      const missed = run.qs.map((q, i) => run.answers[i] === q.correct ? '' :
+        `<div class="missed"><div class="mq">${ic('xCircle', 14)} ${esc(q.stem)}</div><div class="ma">Correct: <b>${esc(q.options[q.correct])}</b></div><div class="msrc">${ic('fileText', 12)} ${esc(q.source_ref)}</div></div>`).join('');
+      return `<div class="assess-card">
+        <div class="assess-hd"><div class="at">Assessment result</div><button class="x" data-action="assessclose">${ic('x', 20)}</button></div>
+        <div class="assess-body">
+          <div class="result-hero ${pass ? 'pass' : 'fail'}">${ic(pass ? 'trophy' : 'refreshCw', 30)}<div><div class="rh-top">${res.pct}% · ${res.correct}/${res.total} correct</div><div class="rh-sub">${pass ? 'Passed — above the ' + S.assess.threshold + '% threshold' : 'Below the ' + S.assess.threshold + '% threshold — you can re-take'}</div></div></div>
+          <div class="seclbl mono" style="margin-top:6px">SCORE BY BRAND</div>${brands}
+          ${missed ? `<div class="seclbl mono" style="margin-top:14px">REVIEW YOUR WEAK AREAS</div>${missed}` : `<div class="mbanner green" style="margin-top:14px">${ic('checkCircle', 16)}<span>Perfect run — no weak areas to review.</span></div>`}
+          <div class="mactions" style="margin-top:16px">${pass ? '' : `<button class="mbtn" data-action="startassess">${ic('refreshCw', 15)} Retake</button>`}<button class="mbtn primary" data-action="assessclose">Done</button></div>
+        </div></div>`;
+    }
+    const q = run.qs[run.idx], p = PRODUCTS[q.product], answered = run.answers[run.idx] != null, last = run.idx === run.qs.length - 1;
+    const opts = q.options.map((o, i) => `<button class="aopt ${run.answers[run.idx] === i ? 'sel' : ''}" data-action="apick" data-i="${i}"><span class="ab">${String.fromCharCode(65 + i)}</span><span>${esc(o)}</span></button>`).join('');
+    return `<div class="assess-card">
+      <div class="assess-hd"><div class="at">${ic('graduationCap', 18)} Assessment · ${PROFILES[S.assess.cert.profile].label}</div><button class="x" data-action="assessclose">${ic('x', 20)}</button></div>
+      <div class="assess-prog"><div class="assess-prog-txt">Question ${run.idx + 1} of ${run.qs.length}</div><div class="prog-wrap"><div class="prog-fill" style="width:${(run.idx + 1) / run.qs.length * 100}%"></div></div></div>
+      <div class="assess-body">
+        <div class="qmeta"><span class="qtag" style="background:${p.bg};color:${p.color}">${p.letter} ${p.name}</span><span class="qdiff">${esc(q.difficulty)}</span><span class="qtopic">${esc(q.topic)}</span></div>
+        <div class="qstem">${esc(q.stem)}</div>
+        <div class="aopts">${opts}</div>
+        <div class="assess-foot">
+          ${run.idx > 0 ? `<button class="mbtn" data-action="assessprev">${ic('chevronLeft', 15)} Back</button>` : '<span></span>'}
+          <button class="mbtn primary" data-action="${last ? 'assesssubmit' : 'assessnext'}" ${answered ? '' : 'disabled'}>${last ? 'Submit' : 'Next'} ${ic('chevronRight', 15)}</button>
+        </div></div></div>`;
+  }
+
+  /* =====================================================================
+     PART B — ADMIN: Question manager · Assessment monitor · Gap analytics
+     ===================================================================== */
+  const originBadge = (o) => `<span class="obadge ${o}">${o === 'ai' ? 'AI' : 'PRESET'}</span>`;
+  const statusBadge = (s) => `<span class="sbadge ${s}">${s.toUpperCase()}</span>`;
+
+  function qManagerTab() {
+    const drafts = allQuestions().filter((q) => q.origin === 'ai' && qStatus(q) === 'draft');
+    const f = S.qFilter;
+    let list = allQuestions().filter((q) => qStatus(q) !== 'retired');
+    if (f.product !== 'all') list = list.filter((q) => q.product === f.product);
+    if (f.origin !== 'all') list = list.filter((q) => q.origin === f.origin);
+    if (f.status !== 'all') list = list.filter((q) => qStatus(q) === f.status);
+
+    const draftPanel = drafts.length ? `<div class="panel"><h3>${ic('sparkles', 15)} Review ${drafts.length} AI draft${drafts.length > 1 ? 's' : ''} <span class="flt">no bulk approve</span></h3>
+      ${drafts.map((q) => `<div class="draftq"><div class="dq-top"><span class="qtag" style="background:${PRODUCTS[q.product].bg};color:${PRODUCTS[q.product].color}">${PRODUCTS[q.product].letter}</span>${originBadge('ai')}<span class="qdiff">${q.difficulty}</span><span class="qtopic">${esc(q.topic)}</span><span style="color:var(--gray);font-size:10.5px;margin-left:auto">${esc(q.country)}</span></div>
+        <div class="dq-stem">${esc(q.stem)}</div>
+        <div class="dq-ans">${ic('check', 13)} Correct: <b>${esc(q.options[q.correct])}</b></div>
+        <div class="dq-exp">${esc(q.explanation)}</div>
+        <div class="dq-src">${ic('fileText', 12)} ${esc(q.source_ref)}</div>
+        <div class="dq-acts"><button class="btn-sm" data-action="qreject" data-id="${q.id}">${ic('x', 13)} Reject</button><button class="btn-dark" data-action="qapprove" data-id="${q.id}">${ic('check', 13)} Approve &amp; activate</button></div></div>`).join('')}</div>` : '';
+
+    const poolPanel = `<div class="panel"><h3>Question pools <span class="flt">preset / AI blend per product</span></h3>
+      ${Object.keys(S.assess.pools).map((pk) => { const pc = S.assess.pools[pk], p = PRODUCTS[pk]; return `<div class="poolrow"><span class="qtag" style="background:${p.bg};color:${p.color}">${p.letter} ${p.name}</span>
+        <span class="poolcount">${pc.preset} preset · ${pc.ai} AI</span>
+        <div class="mixctl"><span class="mono" style="color:var(--gray)">PRESET ${pc.mix}%</span><input type="range" min="0" max="100" value="${pc.mix}" data-action="poolmix" data-p="${pk}"><span class="mono" style="color:var(--gray)">AI ${100 - pc.mix}%</span></div></div>`; }).join('')}
+      <div style="font-size:10.5px;color:var(--gray);margin-top:6px">Admin sets the preset/AI ratio per product. Baselines lean difficult to expose gaps.</div></div>`;
+
+    const filterBar = `<div class="filters">
+      <span class="filt ${f.product !== 'all' ? 'on' : ''}" data-action="qfprod">Product: ${f.product === 'all' ? 'All' : PRODUCTS[f.product].name} ${ic('chevronDown', 13)}</span>
+      <span class="filt ${f.origin !== 'all' ? 'on' : ''}" data-action="qforig">Origin: ${f.origin === 'all' ? 'All' : (f.origin === 'ai' ? 'AI' : 'Preset')} ${ic('chevronDown', 13)}</span>
+      <span class="filt ${f.status !== 'all' ? 'on' : ''}" data-action="qfstat">Status: ${f.status === 'all' ? 'All' : f.status} ${ic('chevronDown', 13)}</span>
+      <span style="flex:1"></span><button class="btn-dark" data-action="addq">${ic('plusCircle', 13)} New question</button></div>`;
+
+    const rows = list.map((q) => `<tr><td style="max-width:340px">${esc(q.stem)}</td><td>${PRODUCTS[q.product].letter}</td><td>${originBadge(q.origin)}</td><td>${q.difficulty}</td><td>${statusBadge(qStatus(q))}</td><td style="color:var(--gray)">${esc(q.source_ref)}</td><td><button class="btn-sm" data-action="qretire" data-id="${q.id}">${ic('ban', 12)} Retire</button></td></tr>`).join('');
+
+    return `${draftPanel}${poolPanel}
+      <div class="panel"><h3>All questions <span class="flt">${list.length} shown</span></h3>${filterBar}
+        <div class="tablewrap"><table><tr><th>Question</th><th>Brand</th><th>Origin</th><th>Difficulty</th><th>Status</th><th>Source</th><th></th></tr>${rows || '<tr><td colspan="7" style="color:var(--gray)">No questions match these filters.</td></tr>'}</table></div></div>`;
+  }
+
+  function monitorTab() {
+    const rows = ASSESS_MONITOR.map((r, i) => {
+      const stMap = { certified: 'a', failed: 'i', due: 'd', baseline: 'd' };
+      const label = { certified: 'Certified', failed: 'Failed', due: 'Due', baseline: 'Baseline pending' }[r.status];
+      return `<tr data-action="repdrill" data-i="${i}" style="cursor:pointer"><td>${r.name}</td><td><span class="profb ${r.profile}">${r.profile === 'mb' ? 'MULTI' : 'ULT'}</span></td><td>${r.country}</td><td><span class="st ${stMap[r.status]}">${label}</span></td><td>${r.lastScore != null ? r.lastScore + '%' : '—'}</td><td>${esc(r.due)}</td><td><button class="btn-sm" data-action="repdrill" data-i="${i}">${ic('eye', 12)} View</button></td></tr>`;
+    }).join('');
+    return `<div class="panel"><h3>Scoring &amp; cadence <span class="flt">Merz-defined rules</span></h3>
+        <div class="cfgrow"><label>${ic('gauge', 15)} Pass threshold</label><div class="stepper"><button class="btn-sm" data-action="thresh" data-d="-5">−</button><b>${S.assess.threshold}%</b><button class="btn-sm" data-action="thresh" data-d="5">+</button></div><span class="cfghint">per applicable brand</span></div>
+        <div class="cfgrow"><label>${ic('calendar', 15)} Default cadence</label><b>3 months</b><span class="cfghint">strong performers extend to 6 (configurable per user)</span></div>
+        <div style="margin-top:10px"><button class="btn-dark" data-action="adhoc">${ic('play', 13)} Trigger ad-hoc assessment</button></div></div>
+      <div class="panel"><h3>Assessment monitor <span class="flt">Country: All ${ic('chevronDown', 12)}</span></h3>
+        <div class="filters" style="margin-bottom:10px"><span class="filt" data-action="mgrfilter" data-f="Country">Country: All ${ic('chevronDown', 12)}</span><span class="filt" data-action="mgrfilter" data-f="Profile">Profile: All ${ic('chevronDown', 12)}</span></div>
+        <div class="tablewrap"><table><tr><th>Rep</th><th>Profile</th><th>Country</th><th>Status</th><th>Last score</th><th>Next / due</th><th></th></tr>${rows}</table></div></div>`;
+  }
+
+  function analyticsTab() {
+    const failed = MOST_FAILED.map((m) => `<div class="topic"><span style="width:230px">${brandLetter(m.product)} · ${esc(m.stem)}</span><div class="bar-wrap"><div class="bar-fill" style="width:${m.failRate}%"></div></div><span class="n">${m.failRate}%</span></div>`).join('');
+    const topics = WEAK_TOPICS.map((t) => `<div class="topic"><span style="width:200px">${esc(t.topic)}</span><div class="bar-wrap"><div class="bar-fill" style="width:${t.pct}%"></div></div><span class="n">${t.pct}%</span></div>`).join('');
+    return `<div class="mgr-grid">
+      <div class="panel"><h3>Most-failed questions <span class="flt">this cycle</span></h3>${failed}
+        <div style="font-size:10.5px;color:var(--ink-soft);margin-top:8px">${ic('info', 13)} Radiesse contraindications is both the top-asked topic and the most-failed — a training focus, and a signal into the content-gap queue.</div></div>
+      <div class="panel"><h3>Weakest topics (team &amp; product)</h3>${topics}
+        <div class="trendbox"><div class="tb-h">${ic('trendingUp', 14)} Trend over cycles</div><div class="spark">${[68, 74, 79, 83].map((v, i) => `<span style="height:${v}%" title="Cycle ${i + 1}: ${v}%"></span>`).join('')}</div><div class="tb-c">Team average score improving across the last four cycles (68% → 83%).</div></div></div>
+    </div>`;
+  }
+
+  function viewAssess() {
+    const tabs = [['questions', 'listChecks', 'Question manager'], ['monitor', 'gauge', 'Assessment monitor'], ['analytics', 'chartLine', 'Gap analytics']];
+    const body = S.adminTab === 'monitor' ? monitorTab() : S.adminTab === 'analytics' ? analyticsTab() : qManagerTab();
+    return `
+      <div class="hero"><div class="date mono">ASSESSMENTS · ALL COUNTRIES</div><h1>Assessment &amp; certification</h1><div class="sub">Document-based question pools, scoring, and certification cycles. Two profiles: multi-brand and Ultherapy-only.</div></div>
+      <div class="atabs">${tabs.map((t) => `<button class="atab ${S.adminTab === t[0] ? 'on' : ''}" data-action="admintab" data-t="${t[0]}">${ic(t[1], 15)} ${t[2]}</button>`).join('')}</div>
+      ${body}
+      <div class="callout"><b>Document-based, not interaction-based:</b> questions are drawn only from the approved product documentation — no HCP prescribing profiles or interaction history. AI drafts carry a source reference and require one-by-one review before activation.</div>`;
+  }
+
+  function repDrill(i) {
+    const r = ASSESS_MONITOR[i];
+    const base = r.lastScore != null ? r.lastScore : 60;
+    const hist = [{ t: 'Recertification', s: base }, { t: 'Recertification', s: Math.max(40, base - 6) }, { t: 'Baseline (week 1)', s: Math.max(35, base - 14) }];
+    const stLabel = { certified: 'Certified', failed: 'Failed — retake scheduled', due: 'Assessment due', baseline: 'Baseline pending' }[r.status];
+    openModal(`<div class="mhd"><div><div class="mt">${esc(r.name)}</div><div class="msub">${PROFILES[r.profile].label} · ${esc(r.country)} · ${stLabel}</div></div><button class="x" data-action="close">${ic('x', 20)}</button></div>
+      <div class="mbody">
+        ${r.focus ? `<div class="mbanner amber">${ic('alertTriangle', 16)}<span>Flagged for Medical review on <b>${esc(r.focus)}</b>. A re-exam is scheduled — the rep is not locked out.</span></div>` : ''}
+        <div class="seclbl mono">SCORE TREND</div>
+        <div class="spark big" style="margin-bottom:14px">${hist.slice().reverse().map((h) => `<span style="height:${h.s}%" title="${h.t}: ${h.s}%"></span>`).join('')}</div>
+        <div class="seclbl mono">ASSESSMENT HISTORY</div>
+        ${hist.map((h) => `<div class="arow"><span><b>${h.t}</b></span><span style="display:flex;gap:10px;align-items:center"><span style="color:var(--gray)">${h.s}%</span><span class="st ${h.s >= S.assess.threshold ? 'a' : 'i'}">${h.s >= S.assess.threshold ? 'Passed' : 'Failed'}</span></span></div>`).join('')}
+        <div class="mactions"><button class="mbtn" data-action="close">Close</button><button class="mbtn primary" data-action="adhoc">${ic('play', 15)} Trigger assessment</button></div></div>`);
+  }
+
+  function addQuestion() {
+    openModal(`<div class="mhd"><div><div class="mt">${ic('plusCircle', 20)} New preset question</div><div class="msub">Added to the pool as an active preset question</div></div><button class="x" data-action="close">${ic('x', 20)}</button></div>
+      <div class="mbody">
+        <div class="mrow"><div class="fld"><label>Product <span class="req">*</span></label><select id="nqProd">${Object.values(PRODUCTS).map((p) => `<option value="${p.id}">${p.name}</option>`).join('')}</select></div>
+          <div class="fld"><label>Difficulty</label><select id="nqDiff"><option>easy</option><option selected>medium</option><option>hard</option></select></div></div>
+        <div class="fld"><label>Question <span class="req">*</span></label><textarea id="nqStem" placeholder="Scenario-based, specific…"></textarea></div>
+        <div class="mrow"><div class="fld"><label>Option A</label><input id="nqo0"></div><div class="fld"><label>Option B</label><input id="nqo1"></div></div>
+        <div class="mrow"><div class="fld"><label>Option C</label><input id="nqo2"></div><div class="fld"><label>Option D</label><input id="nqo3"></div></div>
+        <div class="mrow"><div class="fld"><label>Correct option</label><select id="nqCorrect"><option value="0">A</option><option value="1">B</option><option value="2">C</option><option value="3">D</option></select></div>
+          <div class="fld"><label>Source reference <span class="req">*</span></label><input id="nqSrc" placeholder="e.g. Xeomin UAE PI · Page 5"></div></div>
+        <div class="merr" id="nqErr">Please add a question, at least two options and a source reference.</div>
+        <div class="mactions"><button class="mbtn" data-action="close">Cancel</button><button class="mbtn primary" data-action="saveq">Add question</button></div></div>`, true);
+  }
+  function saveQuestion() {
+    const v = (id) => (document.getElementById(id) || {}).value || '';
+    const opts = [v('nqo0'), v('nqo1'), v('nqo2'), v('nqo3')].filter((o) => o.trim());
+    if (!v('nqStem').trim() || opts.length < 2 || !v('nqSrc').trim()) { const e = document.getElementById('nqErr'); if (e) e.classList.add('show'); return; }
+    S.assess.custom.push({ id: 'q-custom-' + Date.now(), product: v('nqProd'), topic: 'Custom', difficulty: v('nqDiff'), type: 'mcq', origin: 'preset', status: 'active', country: 'UAE', stem: v('nqStem').trim(), options: [v('nqo0'), v('nqo1'), v('nqo2'), v('nqo3')], correct: +v('nqCorrect'), explanation: 'Admin-authored preset question.', source_ref: v('nqSrc').trim() });
+    saveAssess(); closeModal(); toast('Preset question added to the pool', 'good'); render();
   }
 
   /* =====================================================================
@@ -624,19 +926,20 @@
   function addUser() {
     openModal(`<div class="mhd"><div><div class="mt">${ic('userPlus', 20)} Add user</div><div class="msub">Create a rep account with a profile</div></div><button class="x" data-action="close">${ic('x', 20)}</button></div>
       <div class="mbody"><div class="mrow"><div class="fld"><label>Name <span class="req">*</span></label><input id="auName" placeholder="Full name"></div>
+        <div class="fld"><label>Work email <span class="req">*</span></label><input id="auEmail" placeholder="name@merz.com"></div></div>
+        <div class="mrow"><div class="fld"><label>Temporary password <span class="req">*</span></label><input id="auPass" value="Merz-temp-2026"></div>
         <div class="fld"><label>Country</label><select id="auCountry"><option>UAE</option><option>KSA</option><option>Kuwait</option><option>Qatar</option></select></div></div>
         <div class="fld"><label>Profile</label><select id="auProfile"><option value="mb">Multi-brand</option><option value="uo">Ultherapy-only</option></select></div>
-        <div class="merr" id="auErr">Please enter a name.</div>
-        <div class="mbanner blue">${ic('info', 16)}<span>New users start with a baseline assessment assigned. Permissions are separate sets (content review, PV, assessment admin, user admin, KB admin), combined per person.</span></div>
+        <div class="merr" id="auErr">Please enter a name, work email and temporary password.</div>
+        <div class="mbanner blue">${ic('info', 16)}<span>Admin provisions the account (email + password) — no self-registration. New users start with a baseline assessment assigned in week one. Permissions are separate sets, combined per person.</span></div>
         <div class="mactions"><button class="mbtn" data-action="close">Cancel</button><button class="mbtn primary" data-action="ausave">Create user</button></div></div>`);
   }
   function auSave() {
-    const name = (document.getElementById('auName') || {}).value || '';
-    if (!name.trim()) { const e = document.getElementById('auErr'); if (e) e.classList.add('show'); return; }
-    const profile = (document.getElementById('auProfile') || {}).value || 'mb';
-    const country = (document.getElementById('auCountry') || {}).value || 'UAE';
-    S.users.push({ name: name.trim(), country, profile, completion: '0 of 10 assigned', cert: profile === 'mb' ? [['n', 'R'], ['n', 'X'], ['n', 'B']] : [['n', 'U']] });
-    save('merz_users', S.users); closeModal(); toast('User created · baseline assessment assigned', 'good'); render();
+    const v = (id) => (document.getElementById(id) || {}).value || '';
+    if (!v('auName').trim() || !v('auEmail').trim() || !v('auPass').trim()) { const e = document.getElementById('auErr'); if (e) e.classList.add('show'); return; }
+    const profile = v('auProfile') || 'mb', country = v('auCountry') || 'UAE';
+    S.users.push({ name: v('auName').trim(), email: v('auEmail').trim(), country, profile, completion: '0 of 10 assigned', cert: profile === 'mb' ? [['n', 'R'], ['n', 'X'], ['n', 'B']] : [['n', 'U']] });
+    save('merz_users', S.users); closeModal(); toast('Account provisioned · baseline assessment assigned', 'good'); render();
   }
   function editUser(i) {
     const u = S.users[i];
@@ -765,14 +1068,48 @@
     ausave: () => auSave(),
     edituser: (d) => editUser(+d.i),
     eusave: (d) => euSave(+d.i),
+    // auth
+    login: () => { S.authed = true; try { localStorage.setItem('merz_authed', '1'); } catch (e) {} S.view = 'home'; render(); },
+    logout: () => { closeProfile(); S.authed = false; try { localStorage.removeItem('merz_authed'); } catch (e) {} render(); },
+    // manager config
+    mgrfields: () => fieldsModal(),
+    togcol: (d) => { S.mgrCols[d.k] = !S.mgrCols[d.k]; save('merz_mgrcols', S.mgrCols); render(); },
+    actdays: (d) => { S.activityDays = Math.max(1, Math.min(90, S.activityDays + (+d.d))); render(); },
+    perms: () => permsModal(),
+    // Part B — assessment (rep)
+    startassess: () => startAssess(),
+    apick: (d) => { S.assess.run.answers[S.assess.run.idx] = +d.i; reAssess(); },
+    assessnext: () => { if (S.assess.run.idx < S.assess.run.qs.length - 1) { S.assess.run.idx++; reAssess(); } },
+    assessprev: () => { if (S.assess.run.idx > 0) { S.assess.run.idx--; reAssess(); } },
+    assesssubmit: () => { S.assess.run.done = true; applyResult(scoreRun()); reAssess(); },
+    assessclose: () => { closeAssess(); S.assess.run = null; render(); },
+    // Part B — assessment (admin)
+    admintab: (d) => { S.adminTab = d.t; render(); },
+    gotodrafts: () => { S.adminTab = 'questions'; go('assess'); },
+    qapprove: (d) => { if (S.assess.approved.indexOf(d.id) === -1) S.assess.approved.push(d.id); saveAssess(); toast('Draft approved & activated', 'good'); render(); },
+    qreject: (d) => { if (S.assess.retired.indexOf(d.id) === -1) S.assess.retired.push(d.id); saveAssess(); toast('Draft rejected', 'warn'); render(); },
+    qretire: (d) => { if (S.assess.retired.indexOf(d.id) === -1) S.assess.retired.push(d.id); saveAssess(); toast('Question retired', 'warn'); render(); },
+    qfprod: () => { const o = ['all'].concat(Object.keys(PRODUCTS)); S.qFilter.product = o[(o.indexOf(S.qFilter.product) + 1) % o.length]; render(); },
+    qforig: () => { const o = ['all', 'preset', 'ai']; S.qFilter.origin = o[(o.indexOf(S.qFilter.origin) + 1) % o.length]; render(); },
+    qfstat: () => { const o = ['all', 'active', 'draft']; S.qFilter.status = o[(o.indexOf(S.qFilter.status) + 1) % o.length]; render(); },
+    addq: () => addQuestion(),
+    saveq: () => saveQuestion(),
+    poolmix: (d, el) => { S.assess.pools[d.p].mix = +el.value; saveAssess(); const r = el.closest('.mixctl'); if (r) { r.querySelector('.mono').innerHTML = 'PRESET ' + el.value + '%'; r.querySelectorAll('.mono')[1].innerHTML = 'AI ' + (100 - el.value) + '%'; } },
+    thresh: (d) => { S.assess.threshold = Math.max(50, Math.min(100, S.assess.threshold + (+d.d))); saveAssess(); render(); },
+    adhoc: () => { closeModal(); toast('Ad-hoc assessment triggered (demo)', 'good'); },
+    repdrill: (d) => repDrill(+d.i),
     close: () => closeModal()
   };
 
   document.addEventListener('click', (ev) => {
     const el = ev.target.closest('[data-action]');
-    if (!el) return;
+    if (!el || el.type === 'range') return;
     const fn = ACTIONS[el.dataset.action];
     if (fn) { ev.preventDefault(); fn(el.dataset, el, ev); }
+  });
+  document.addEventListener('input', (ev) => {
+    const el = ev.target.closest('[data-action="poolmix"]');
+    if (el && ACTIONS.poolmix) ACTIONS.poolmix(el.dataset, el, ev);
   });
   document.addEventListener('keydown', (ev) => {
     if (ev.key !== 'Enter') return;
@@ -783,8 +1120,9 @@
   /* =====================================================================
      RENDER
      ===================================================================== */
-  const VIEWS = { home: viewHome, chat: viewChat, lib: viewLibrary, mgr: viewManager, adm: viewAdmin };
+  const VIEWS = { home: viewHome, chat: viewChat, lib: viewLibrary, cert: viewCert, mgr: viewManager, adm: viewAdmin, assess: viewAssess };
   function render() {
+    if (!S.authed) { app().innerHTML = viewLogin(); return; }
     const role = roleOfView(S.view);
     const active = S.view;
     let activeProduct = null;

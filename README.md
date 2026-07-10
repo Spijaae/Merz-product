@@ -60,6 +60,22 @@ python3 -m http.server 8000   # then open http://localhost:8000
 **Admin**
 - **Write answer** resolves a content gap and decrements the live queue count
 - Review AI-drafted assessment questions, add / edit users (persisted), compliance-flag detail
+- **Roles & permissions** — separated permission sets (content, PV, assessment, users, KB), combinable, never one super-role
+- Provisioning captures **email + password** (no self-registration)
+
+**Login / front screen** — Merz logo, admin-provisioned sign-in, appearance toggle. Sign out from the profile menu.
+
+**Part B — Assessment & Certification module** (build plan Part B)
+- **Rep · Certification** — per-brand certification grid, next-due date, cadence, and full assessment history
+- **Rep · Take assessment** — a document-grounded MCQ runner: progress bar, per-question brand/difficulty/topic, auto-scoring against the configurable threshold, per-brand breakdown, weak-area review with source refs, pass → certified, fail → retake (never locked out)
+- **Admin · Question manager** — AI drafts reviewed one-by-one (source, correct answer, explanation, difficulty, product, country — no bulk approve), preset/AI pool-mix sliders per product, filters, add/retire questions
+- **Admin · Assessment monitor** — who's certified/failed/due, configurable pass threshold, ad-hoc trigger, per-rep drill-down with score trend
+- **Admin · Gap analytics** — most-failed questions, weakest topics, trend across cycles
+- Two profiles throughout: **multi-brand** (20/15/15 split) and **Ultherapy-only**
+
+**Manager**
+- Named **active vs non-active** adoption lists with a **configurable activity window** ("asked ≥1 question in last N days")
+- **Configurable table fields** (show/hide columns via config, not code)
 
 ## Structure
 
@@ -71,5 +87,23 @@ js/data.js        # mock knowledge base, documents, reps, admin data
 js/app.js         # state, routing, answer engine, views, modals, theme/persona
 ```
 
-Persisted keys (`localStorage`): `merz_theme`, `merz_saved`, `merz_dismissed`,
-`merz_pv`, `merz_gaps`, `merz_users`. Clear them to reset the demo.
+Persisted keys (`localStorage`): `merz_theme`, `merz_authed`, `merz_saved`,
+`merz_dismissed`, `merz_pv`, `merz_gaps`, `merz_users`, `merz_assess`, `merz_mgrcols`.
+Clear them to reset the demo.
+
+## Build-plan coverage
+
+Implemented in this front-end demo: Part A branding (logo + monochrome palette + login),
+the "current state" behaviours (four brands, dual reply, citations, follow-ups, team trending,
+Team Pulse, content-gap detection, voice, answer guardrail), the admin rebuild (named
+active/inactive, configurable fields + activity window, email/password provisioning,
+separated permission sets), all Addendum UX items (safety PV flow, share-panel wording,
+trust pill, source-drawer permission badges, entitlement filters, two profiles, mobile
+bottom-sheet + off-canvas nav), and the full **Part B** assessment & certification module
+(data model, question sources with preset/AI review, lifecycle language, scoring/threshold,
+and all six screens).
+
+Out of scope for a client-side demo (they are backend / process / deployment work):
+A2 accuracy grading pass, A3 real document ingestion (FAQs + MIRT), the branded testing-link
+delivery, the onboarding video, and the pentest. These need a running backend, real Merz
+content, and infra — not front-end code.
