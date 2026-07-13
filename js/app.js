@@ -29,10 +29,14 @@
   };
 
   const storedAssess = load('merz_assess', null) || {};
+  const ALL_PRODUCTS = Object.keys(PRODUCTS); // xeomin, belotero, radiesse, ultherapy
+  const CURRENT_REP = 'Karim A.'; // the signed-in rep persona (Karim)
   const S = {
     view: 'home',
     navOpen: false,
     authed: (function () { try { return localStorage.getItem('merz_authed') === '1'; } catch (e) { return false; } })(),
+    onboarded: (function () { try { return localStorage.getItem('merz_onboarded') === '1'; } catch (e) { return false; } })(),
+    onboardStep: 0,
     theme: document.documentElement.getAttribute('data-theme') || 'light',
     cat: 'Dosing & reconstitution',
     chat: null,
@@ -41,7 +45,8 @@
     pv: load('merz_pv', []),
     resolvedGaps: load('merz_gaps', []),
     lib: { q: '', product: 'all', type: 'all', hcpOnly: false, quick: null },
-    users: load('merz_users', null) || ADMIN_USERS.slice(),
+    users: (load('merz_users', null) || ADMIN_USERS.slice()).map((u) => Object.assign({ products: ALL_PRODUCTS.slice() }, u)),
+    access: load('merz_access', null) || ALL_PRODUCTS.slice(), // medicines the signed-in rep may handle
     adminTab: 'questions',
     activityDays: 7,
     mgrCols: load('merz_mgrcols', null) || { q30: true, completion: true, last: true, cert: true, next: true },
@@ -59,6 +64,16 @@
   function saveAssess() {
     save('merz_assess', { threshold: S.assess.threshold, cert: S.assess.cert, pools: S.assess.pools, approved: S.assess.approved, retired: S.assess.retired, custom: S.assess.custom });
   }
+  /* --------------------------------------------------------- product access
+     Role-based entitlement: an admin assigns which medicines each rep may
+     handle. The signed-in rep only sees products in S.access. */
+  const canAccess = (pid) => S.access.indexOf(pid) !== -1;
+  const accessProducts = () => ALL_PRODUCTS.filter(canAccess);
+  function syncAccessFromUsers() {
+    const me = S.users.find((u) => u.name === CURRENT_REP);
+    if (me) { S.access = (me.products && me.products.length ? me.products : ALL_PRODUCTS).slice(); save('merz_access', S.access); }
+  }
+
   const allQuestions = () => QUESTIONS.concat(S.assess.custom);
   function qStatus(q) {
     if (S.assess.retired.indexOf(q.id) !== -1) return 'retired';
@@ -120,6 +135,8 @@
         <button class="segbtn ${S.theme === 'light' ? 'on' : ''}" data-action="settheme" data-t="light">${ic('sun', 15)} Light</button>
         <button class="segbtn ${S.theme === 'dark' ? 'on' : ''}" data-action="settheme" data-t="dark">${ic('moon', 15)} Dark</button>
       </div></div>
+      <div class="pm-div"></div>
+      <div class="pm-sec"><button class="pm-opt" data-action="tour">${ic('sparkles', 16)} Replay product tour</button></div>
       <div class="pm-div"></div>
       <div class="pm-sec"><button class="pm-opt" data-action="logout">${ic('logOut', 16)} Sign out</button></div>`;
   }
@@ -204,12 +221,13 @@
       `<a data-action="nav" data-view="${n[0]}" class="${active === n[0] ? 'on' : ''}"><span class="ic">${ic(n[1], 17)}</span> ${n[2]}</a>`
     ).join('');
 
+    const myProds = accessProducts();
     const prodHtml = !showProds ? '' : `
       <div class="sideprods"><div class="h">Products</div>
-        ${Object.values(PRODUCTS).map((p) =>
-          `<div class="sp ${activeProduct === p.id ? 'active' : ''}" data-action="prod" data-product="${p.id}">${prodDot(p.id)}${p.name}<span class="tag2">${p.code}</span></div>`
-        ).join('')}
-        <div class="sidehint">Tapping a product starts a new question scoped to it.</div></div>`;
+        ${myProds.map((pid) => { const p = PRODUCTS[pid];
+          return `<div class="sp ${activeProduct === p.id ? 'active' : ''}" data-action="prod" data-product="${p.id}">${prodDot(p.id)}${p.name}<span class="tag2">${p.code}</span></div>`;
+        }).join('')}
+        <div class="sidehint">${myProds.length < ALL_PRODUCTS.length ? `You're assigned ${myProds.length} of ${ALL_PRODUCTS.length} products by your admin. ` : ''}Tapping a product starts a new question scoped to it.</div></div>`;
 
     return `<aside class="side">
       <div class="logo"><div class="wordmark" data-action="nav" data-view="home"><span class="l1">MERZ</span><span class="l2">AESTHETICS<span class="reg">&reg;</span></span></div><span class="exp">EXPERT</span></div>
@@ -246,7 +264,7 @@
       `<span class="x" data-action="dismiss" data-id="${c.id}">${ic('x', 14)}</span></div>`
     ).join('');
 
-    const asked = TEAM_ASKED.map((t) =>
+    const asked = TEAM_ASKED.filter((t) => canAccess(t.product)).map((t) =>
       `<div class="row" data-action="ask" data-entry="${t.entry}" data-q="${esc(t.q)}"><span class="bic" style="background:${PRODUCTS[t.product].bg};color:${PRODUCTS[t.product].color}">${PRODUCTS[t.product].letter}</span>${esc(t.q)}<span class="n">${t.n} asks</span><span class="ar">${ic('chevronRight', 16)}</span></div>`
     ).join('');
 
@@ -254,12 +272,12 @@
       ? S.saved.map((s) => `<div class="s" data-action="ask" data-entry="${s.entryId}" data-q="${esc(s.q)}"><span>${esc(s.q)}</span> ${ic('chevronRight', 15)}</div>`).join('')
       : `<div class="empty">No saved answers yet. Save an answer from any chat to pin it here.</div>`;
 
-    const brands = Object.values(PRODUCTS).map((p) =>
-      `<div class="bcard"><div class="bar" style="background:${p.color}"></div><div class="in">
+    const brands = accessProducts().map((pid) => { const p = PRODUCTS[pid];
+      return `<div class="bcard"><div class="bar" style="background:${p.color}"></div><div class="in">
         <div class="hd"><div class="ic" style="background:${p.bg};color:${p.color}">${p.letter}</div><div><div class="nm">${p.name}</div><div class="cat2">${p.cat2}</div></div></div>
         <div class="q" data-action="ask" data-q="${esc(p.spark)}">${esc(p.spark)} ${ic('chevronRight', 15)}</div>
-        <div class="appr">${ic('check', 13)} UAE-approved · Reviewed ${p.reviewed}</div></div></div>`
-    ).join('');
+        <div class="appr">${ic('check', 13)} UAE-approved · Reviewed ${p.reviewed}</div></div></div>`;
+    }).join('');
 
     return `
       <div class="hero"><div class="date mono">FRIDAY, JULY 10</div><h1>Good morning, Karim</h1>
@@ -274,10 +292,9 @@
         <button class="sa-btn" data-action="pv">Start ${ic('chevronRight', 15)}</button></div>
       <div class="catq"><div class="h">${esc(S.cat)} · suggested questions</div>${qs}</div>
       ${dyn ? `<div class="dyncards">${dyn}</div>` : ''}
-      <div class="seclbl mono">TEAM ASKED THIS WEEK</div>
-      <div class="asked">${asked}</div>
+      ${asked ? `<div class="seclbl mono">TEAM ASKED THIS WEEK</div><div class="asked">${asked}</div>` : ''}
       <div class="two-col">
-        <div class="cont"><div class="bub">${ic('messageSquare', 18)}</div><div class="tx"><div class="q">Belotero layering technique for lip definition</div><div class="meta">Belotero · last active just now</div></div><button class="go" data-action="ask" data-entry="bel-layering-lip" data-q="Belotero layering technique for lip definition">Continue</button></div>
+        ${canAccess('belotero') ? `<div class="cont"><div class="bub">${ic('messageSquare', 18)}</div><div class="tx"><div class="q">Belotero layering technique for lip definition</div><div class="meta">Belotero · last active just now</div></div><button class="go" data-action="ask" data-entry="bel-layering-lip" data-q="Belotero layering technique for lip definition">Continue</button></div>` : ''}
         <div class="saved"><div class="h">${ic('bookmark', 15)} Saved answers</div>${savedHtml}</div></div>
       <div class="seclbl mono">YOUR PRODUCTS <span><button class="cmpbtn" data-action="compare">${ic('compare', 15)} Compare vs competitor</button></span></div>
       <div class="brands">${brands}</div>
@@ -310,7 +327,7 @@
     }
     if (r.offlabel) {
       out += `<div class="warnband ol"><div class="wh">${ic('alertTriangle', 14)} Potentially off-label</div>
-        A question about <b>${esc(PRODUCTS[r.offlabel.product].name)} — ${esc(r.offlabel.area)}</b> may fall outside the locally approved indication. ${esc(r.offlabel.note)} Present only approved indications; raise to Medical Affairs if the HCP needs more.</div>`;
+        A question about <b>${esc(PRODUCTS[r.offlabel.product].name)} — ${esc(r.offlabel.area)}</b> may fall outside the locally approved indication. ${esc(r.offlabel.note)} Present only approved indications. This question is <b>not auto-routed to Medical Affairs</b> — it's logged in the admin panel so Medical Affairs can review it there. Raise it yourself if the HCP needs more.</div>`;
     }
 
     if (r.entry) {
@@ -415,6 +432,7 @@
   function filterDocs() {
     const q = S.lib.q.toLowerCase().trim();
     return DOCS.filter((d) => {
+      if (!canAccess(d.product)) return false;
       if (S.lib.product !== 'all' && d.product !== S.lib.product) return false;
       if (S.lib.hcpOnly && d.perm !== 'hcp') return false;
       if (S.lib.type !== 'all') {
@@ -436,7 +454,7 @@
   }
   function viewLibrary() {
     const L = S.lib;
-    const recent = DOCS.filter((d) => d.isNew);
+    const recent = DOCS.filter((d) => d.isNew && canAccess(d.product));
     const list = filterDocs();
     const filtered = L.q || L.product !== 'all' || L.type !== 'all' || L.hcpOnly || L.quick;
 
@@ -457,7 +475,7 @@
       mainList = `<div class="seclbl mono">RECENTLY UPDATED</div>${recent.map(docRow).join('')}
         <div class="lib-two">
           <div class="lpanel"><div class="h">${ic('trendingUp', 14)} Frequently used by your team</div>
-            ${[['xeomin', 'Xeomin reconstitution table', 'xeo-reconstitution'], ['radiesse', 'Radiesse dilution guide', 'rad-dilution'], ['belotero', 'Belotero portfolio overview', 'bel-overview'], ['ultherapy', 'Ultherapy treatment-depth reference', 'ult-overview']].map((r) =>
+            ${[['xeomin', 'Xeomin reconstitution table', 'xeo-reconstitution'], ['radiesse', 'Radiesse dilution guide', 'rad-dilution'], ['belotero', 'Belotero portfolio overview', 'bel-overview'], ['ultherapy', 'Ultherapy treatment-depth reference', 'ult-overview']].filter((r) => canAccess(r[0])).map((r) =>
               `<div class="lrow" data-action="ask" data-entry="${r[2]}" data-q="${esc(r[1])}"><span class="bic" style="background:${PRODUCTS[r[0]].bg};color:${PRODUCTS[r[0]].color}">${PRODUCTS[r[0]].letter}</span>${esc(r[1])}<span class="n2">${ic('chevronRight', 15)}</span></div>`
             ).join('')}</div>
           <div class="lpanel"><div class="h">${ic('bookmark', 14)} Your saved resources</div>
@@ -466,7 +484,7 @@
             <div class="lrow" style="color:var(--gray)">Saved answers live on Home · documents live here</div></div>
         </div>
         <div class="seclbl mono">BROWSE BY PRODUCT</div>
-        <div class="lbrands">${Object.values(PRODUCTS).map((p) => {
+        <div class="lbrands">${accessProducts().map((pid) => { const p = PRODUCTS[pid];
           const cnt = DOCS.filter((d) => d.product === p.id).length;
           const nw = DOCS.filter((d) => d.product === p.id && d.isNew).length;
           return `<div class="lb" data-action="libprodset" data-product="${p.id}"><div class="bar" style="background:${p.color}"></div><div class="in">
@@ -552,6 +570,12 @@
   /* =====================================================================
      ADMIN
      ===================================================================== */
+  /* product-entitlement helpers (role-based medicine access) */
+  const accessChips = (products) => `<span class="permchips">${(products && products.length ? products : ALL_PRODUCTS).map((pid) => `<span class="permchip" title="${esc(PRODUCTS[pid].name)}">${PRODUCTS[pid].letter}</span>`).join('')}</span>`;
+  const prodCheckHtml = (selected) => `<div class="prodchecks">${ALL_PRODUCTS.map((pid) => { const p = PRODUCTS[pid]; const on = (selected || ALL_PRODUCTS).indexOf(pid) !== -1;
+    return `<label class="prodcheck"><input type="checkbox" data-pid="${pid}" ${on ? 'checked' : ''}>${prodDot(pid)} ${esc(p.name)}</label>`; }).join('')}</div>`;
+  const readProdChecks = () => Array.prototype.slice.call(document.querySelectorAll('.prodcheck input[data-pid]')).filter((c) => c.checked).map((c) => c.dataset.pid);
+
   function viewAdmin() {
     const pools = ASSESSMENT_POOLS.map((p) =>
       `<div class="arow"><span>${esc(p.name)}</span><span><span style="color:var(--gray);font-size:11px;margin-right:8px">${p.preset} preset · ${p.ai} AI</span><button class="btn-sm" data-action="reviewpool" data-name="${esc(p.name)}">Review</button></span></div>`
@@ -568,7 +592,7 @@
       `<div class="arow" data-action="compliance" data-text="${esc(c.text)}" data-flag="${c.flag}" style="cursor:pointer"><span>${esc(c.text)}</span><span class="flag ${c.flag}">${c.label}</span></div>`
     ).join('');
     const users = S.users.map((u, i) =>
-      `<tr><td>${esc(u.name)}</td><td>${esc(u.country)}</td><td><span class="profb ${u.profile}">${u.profile === 'mb' ? 'MULTI' : 'ULT'}</span></td><td>${esc(u.completion)}</td><td>${certGroup(u.cert)}</td><td><button class="btn-sm" data-action="edituser" data-i="${i}">${ic('pencil', 12)} Edit</button></td></tr>`
+      `<tr><td>${esc(u.name)}</td><td>${esc(u.country)}</td><td><span class="profb ${u.profile}">${u.profile === 'mb' ? 'MULTI' : 'ULT'}</span></td><td>${accessChips(u.products)}</td><td>${certGroup(u.cert)}</td><td><button class="btn-sm" data-action="edituser" data-i="${i}">${ic('pencil', 12)} Edit</button></td></tr>`
     ).join('');
     const tones = ['var(--p3)', 'var(--p1)', 'var(--p2)', 'var(--p4)']; // RAD, XEO, BEL, ULT
     const usagePct = [38, 27, 22, 13], usageLbl = ['RAD', 'XEO', 'BEL', 'ULT'];
@@ -591,7 +615,7 @@
           <div class="arow"><span style="color:var(--gray);font-size:11px">Resolving a gap re-runs the original questions, then notifies every rep who asked. Separate metric from assessment completion.</span></div></div>
         <div class="panel"><h3>Compliance flags <span class="flt">Per brand ${ic('chevronDown', 12)}</span></h3>${compliance}</div>
         <div class="panel"><h3>Users <span class="flt">Country: All ${ic('chevronDown', 12)}</span></h3>
-          <div class="tablewrap"><table><tr><th>User</th><th>Country</th><th>Profile</th><th>Completion (quarter)</th><th>Certification</th><th></th></tr>${users}</table></div>
+          <div class="tablewrap"><table><tr><th>User</th><th>Country</th><th>Profile</th><th>Assigned products</th><th>Certification</th><th></th></tr>${users}</table></div>
           <div style="margin-top:10px"><button class="btn-dark" data-action="adduser">${ic('userPlus', 13)} Add user</button></div></div>
         <div class="panel"><h3>Roles &amp; permissions <span class="flt">separated sets</span></h3>
           ${ADMIN_ROLES.map((r) => `<div class="arow"><span><b>${esc(r.name)}</b> · ${esc(r.role)}</span><span class="permchips">${r.perms.map((pid) => `<span class="permchip">${PERM_SHORT[pid]}</span>`).join('')}</span></div>`).join('')}
@@ -624,6 +648,44 @@
       </div>
       <div class="login-foot">Pilot build · UAE · fictional demo data</div>
     </div>`;
+  }
+
+  /* =====================================================================
+     ONBOARDING  (shown once after account creation / first sign-in)
+     ===================================================================== */
+  const ONBOARD_STEPS = [
+    { icon: 'search', title: 'Ask anything about your brands',
+      body: 'Xeomin, Belotero, Radiesse and Ultherapy. Type a question or pick a shortcut and you get a source-grounded answer you can use with HCPs in seconds — for the medicines your admin has assigned to you.' },
+    { icon: 'shieldCheck', title: 'Every answer is grounded in approved sources',
+      body: 'Answers cite approved Merz sources with country and approval date. Switch between HCP-conversation and rep-detail guidance, open the source drawer, and share only HCP-approved material.' },
+    { icon: 'layers', title: 'Off-label questions stay compliant',
+      body: 'If you ask something outside the approved label, the assistant shows only approved indications — it does <b>not</b> auto-route your question to Medical Affairs. The query is logged in the admin panel so Medical Affairs can review it there. You decide whether to raise it.' }
+  ];
+  function viewOnboard() {
+    const n = ONBOARD_STEPS.length, i = Math.max(0, Math.min(S.onboardStep, n - 1)), st = ONBOARD_STEPS[i], last = i === n - 1;
+    const dots = ONBOARD_STEPS.map((_, k) => `<span class="ob-dot ${k === i ? 'on' : ''}"></span>`).join('');
+    return `<div class="onboardwrap">
+      <div class="ob-brand"><span class="l1">MERZ</span> <span class="l2">AESTHETICS<span class="reg">&reg;</span></span> <span class="ob-exp">EXPERT</span></div>
+      <div class="onboardcard">
+        <div class="ob-icon">${ic(st.icon, 30)}</div>
+        <div class="ob-tag mono">GETTING STARTED · ${i + 1} OF ${n}</div>
+        <h2 class="ob-title">${st.title}</h2>
+        <p class="ob-body">${st.body}</p>
+        <div class="ob-dots">${dots}</div>
+        <div class="ob-foot">
+          <button class="mbtn" data-action="obskip">Skip</button>
+          <div class="ob-foot-right">
+            ${i > 0 ? `<button class="mbtn" data-action="obprev">${ic('chevronLeft', 15)} Back</button>` : ''}
+            <button class="mbtn primary" data-action="obnext">${last ? 'Start using it' : 'Continue'} ${ic('chevronRight', 15)}</button>
+          </div>
+        </div>
+      </div>
+      <div class="login-foot">Pilot build · UAE · fictional demo data</div>
+    </div>`;
+  }
+  function finishOnboard() {
+    S.onboarded = true; try { localStorage.setItem('merz_onboarded', '1'); } catch (e) {}
+    S.onboardStep = 0; S.view = 'home'; render();
   }
 
   /* =====================================================================
@@ -856,7 +918,7 @@
           <div class="fld"><label>Approximate onset</label><input id="pvOnset" placeholder="e.g. 3 weeks after treatment"></div></div>
         <div class="fld"><label>Brief description <span class="req">*</span></label><textarea id="pvDesc" placeholder="What happened? Include what was observed and any action taken. Do not include patient-identifying information."></textarea>
           <div class="hint">Minimum capture only. A PV specialist will follow up for full case details.</div></div>
-        <div class="fld"><label>Your contact for follow-up <span class="req">*</span></label><input id="pvContact" placeholder="Email or phone" value="anubhav@allysai.com"></div>
+        <div class="fld"><label>Your contact for follow-up <span class="req">*</span></label><input id="pvContact" placeholder="Email or phone" value="anubhav@allys-ai.com"></div>
         <div class="mactions"><button class="mbtn" data-action="close">Cancel</button><button class="mbtn danger" data-action="pvsubmit">${ic('shieldAlert', 15)} Submit report</button></div>
       </div>`);
   }
@@ -930,29 +992,36 @@
         <div class="mrow"><div class="fld"><label>Temporary password <span class="req">*</span></label><input id="auPass" value="Merz-temp-2026"></div>
         <div class="fld"><label>Country</label><select id="auCountry"><option>UAE</option><option>KSA</option><option>Kuwait</option><option>Qatar</option></select></div></div>
         <div class="fld"><label>Profile</label><select id="auProfile"><option value="mb">Multi-brand</option><option value="uo">Ultherapy-only</option></select></div>
-        <div class="merr" id="auErr">Please enter a name, work email and temporary password.</div>
-        <div class="mbanner blue">${ic('info', 16)}<span>Admin provisions the account (email + password) — no self-registration. New users start with a baseline assessment assigned in week one. Permissions are separate sets, combined per person.</span></div>
+        <div class="fld"><label>Assigned products <span class="req">*</span></label>${prodCheckHtml(ALL_PRODUCTS)}<div class="hint">The rep will only see and handle the medicines you assign here.</div></div>
+        <div class="merr" id="auErr">Please enter a name, work email, temporary password and at least one assigned product.</div>
+        <div class="mbanner blue">${ic('info', 16)}<span>Admin provisions the account (email + password) — no self-registration. Assign the specific medicines this rep is responsible for. New users start with a baseline assessment assigned in week one. Permissions are separate sets, combined per person.</span></div>
         <div class="mactions"><button class="mbtn" data-action="close">Cancel</button><button class="mbtn primary" data-action="ausave">Create user</button></div></div>`);
   }
   function auSave() {
     const v = (id) => (document.getElementById(id) || {}).value || '';
-    if (!v('auName').trim() || !v('auEmail').trim() || !v('auPass').trim()) { const e = document.getElementById('auErr'); if (e) e.classList.add('show'); return; }
+    const products = readProdChecks();
+    if (!v('auName').trim() || !v('auEmail').trim() || !v('auPass').trim() || !products.length) { const e = document.getElementById('auErr'); if (e) e.classList.add('show'); return; }
     const profile = v('auProfile') || 'mb', country = v('auCountry') || 'UAE';
-    S.users.push({ name: v('auName').trim(), email: v('auEmail').trim(), country, profile, completion: '0 of 10 assigned', cert: profile === 'mb' ? [['n', 'R'], ['n', 'X'], ['n', 'B']] : [['n', 'U']] });
-    save('merz_users', S.users); closeModal(); toast('Account provisioned · baseline assessment assigned', 'good'); render();
+    S.users.push({ name: v('auName').trim(), email: v('auEmail').trim(), country, profile, products, completion: '0 of 10 assigned', cert: profile === 'mb' ? [['n', 'R'], ['n', 'X'], ['n', 'B']] : [['n', 'U']] });
+    save('merz_users', S.users); syncAccessFromUsers(); closeModal(); toast('Account provisioned · baseline assessment assigned', 'good'); render();
   }
   function editUser(i) {
     const u = S.users[i];
     openModal(`<div class="mhd"><div><div class="mt">${ic('pencil', 20)} Edit user</div><div class="msub">${esc(u.name)}</div></div><button class="x" data-action="close">${ic('x', 20)}</button></div>
       <div class="mbody"><div class="mrow"><div class="fld"><label>Country</label><select id="euCountry"><option ${u.country === 'UAE' ? 'selected' : ''}>UAE</option><option ${u.country === 'KSA' ? 'selected' : ''}>KSA</option><option ${u.country === 'Kuwait' ? 'selected' : ''}>Kuwait</option><option ${u.country === 'Qatar' ? 'selected' : ''}>Qatar</option></select></div>
         <div class="fld"><label>Profile</label><select id="euProfile"><option value="mb" ${u.profile === 'mb' ? 'selected' : ''}>Multi-brand</option><option value="uo" ${u.profile === 'uo' ? 'selected' : ''}>Ultherapy-only</option></select></div></div>
+        <div class="fld"><label>Assigned products <span class="req">*</span></label>${prodCheckHtml(u.products)}<div class="hint">Only the checked medicines will appear for this rep${u.name === CURRENT_REP ? ' (this is the signed-in rep — changes apply to the Rep view live)' : ''}.</div></div>
+        <div class="merr" id="euErr">Assign at least one product.</div>
         <div class="mactions"><button class="mbtn" data-action="close">Cancel</button><button class="mbtn primary" data-action="eusave" data-i="${i}">Save changes</button></div></div>`);
   }
   function euSave(i) {
     const u = S.users[i];
+    const products = readProdChecks();
+    if (!products.length) { const e = document.getElementById('euErr'); if (e) e.classList.add('show'); return; }
     u.country = (document.getElementById('euCountry') || {}).value || u.country;
     u.profile = (document.getElementById('euProfile') || {}).value || u.profile;
-    save('merz_users', S.users); closeModal(); toast('Changes saved for ' + esc(u.name), 'good'); render();
+    u.products = products;
+    save('merz_users', S.users); syncAccessFromUsers(); closeModal(); toast('Changes saved for ' + esc(u.name), 'good'); render();
   }
 
   function reviewDrafts() {
@@ -975,15 +1044,22 @@
       <div class="mbody"><div class="mbanner ${isPv ? 'red' : 'amber'}">${ic(isPv ? 'shieldAlert' : 'alertTriangle', 16)}<span>Flagged query: <b>${esc(text)}</b></span></div>
         <p style="font-size:13px;line-height:1.7;color:var(--ink-soft)">${isPv
           ? 'A possible adverse event was detected in a rep query and auto-routed to Pharmacovigilance within 24 hours. The rep was directed to the dedicated PV reporting flow. Review the routed case and confirm follow-up.'
-          : 'A potentially off-label question was detected. The assistant returned only approved indications and surfaced an off-label caution. No off-label claim was generated. Confirm whether an approved boundary message is sufficient or MA follow-up is needed.'}</p>
+          : 'A potentially off-label question was detected. The assistant returned only approved indications and surfaced an off-label caution. No off-label claim was generated, and the question was <b>not auto-routed to Medical Affairs</b> — it is logged here so Medical Affairs has visibility. Confirm whether an approved boundary message is sufficient or MA follow-up is needed.'}</p>
         <div class="mactions"><button class="mbtn" data-action="close">Close</button><button class="mbtn primary" data-action="close">Mark reviewed</button></div></div>`);
   }
 
+  const COMPARE_BY_PRODUCT = {
+    xeomin: 'Xeomin vs other neurotoxins',
+    radiesse: 'Radiesse vs other biostimulators',
+    belotero: 'Belotero vs other HA fillers',
+    ultherapy: 'Ultherapy vs RF devices'
+  };
   function compareModal() {
-    openModal(`<div class="mhd"><div><div class="mt">${ic('compare', 20)} Compare vs competitor</div><div class="msub">Approved claims only</div></div><button class="x" data-action="close">${ic('x', 20)}</button></div>
-      <div class="mbody"><div class="mbanner blue">${ic('info', 16)}<span>Comparisons use only claims that appear in approved Merz materials. The assistant will not generate head-to-head claims that aren't approved.</span></div>
+    const comparisons = accessProducts().map((pid) => COMPARE_BY_PRODUCT[pid]).filter(Boolean);
+    openModal(`<div class="mhd"><div><div class="mt">${ic('compare', 20)} Compare vs competitor</div><div class="msub">Each brand against its own competitor set</div></div><button class="x" data-action="close">${ic('x', 20)}</button></div>
+      <div class="mbody"><div class="mbanner blue">${ic('info', 16)}<span>Each Merz brand is compared only with its <b>own competitors</b> (not with other Merz products). Comparisons use only claims that appear in approved Merz materials — the assistant will not generate head-to-head claims that aren't approved.</span></div>
         <div class="fld"><label>Pick a comparison</label></div>
-        <div class="fups">${['Xeomin vs other neurotoxins', 'Radiesse vs other biostimulators', 'Ultherapy vs RF devices'].map((q) => `<div class="fup" data-action="askclose" data-q="${esc(q)}">${esc(q)}</div>`).join('')}</div>
+        <div class="fups">${comparisons.map((q) => `<div class="fup" data-action="askclose" data-q="${esc(q)}">${esc(q)}</div>`).join('')}</div>
         <div class="mactions" style="margin-top:14px"><button class="mbtn" data-action="close">Cancel</button></div></div>`);
   }
 
@@ -1045,7 +1121,7 @@
     sharechan: (d) => toast(esc(d.c) + ': approved material only — pick an HCP-shareable source', 'warn'),
     opendoc: (d) => openDoc(d.title, d.meta, d.ex),
     libsearch: () => { const i = $('#libInput'); if (i) { S.lib.q = i.value; render(); } },
-    libprod: () => { const order = ['all'].concat(Object.keys(PRODUCTS)); S.lib.product = order[(order.indexOf(S.lib.product) + 1) % order.length]; render(); },
+    libprod: () => { const order = ['all'].concat(accessProducts()); S.lib.product = order[(order.indexOf(S.lib.product) + 1) % order.length]; render(); },
     libprodset: (d) => { S.lib.product = d.product; S.lib.quick = null; render(); },
     libtype: () => { const order = ['all', 'label', 'dosing', 'safety', 'evidence', 'objection']; S.lib.type = order[(order.indexOf(S.lib.type) + 1) % order.length]; S.lib.quick = null; render(); },
     libhcp: () => { S.lib.hcpOnly = !S.lib.hcpOnly; render(); },
@@ -1069,7 +1145,11 @@
     edituser: (d) => editUser(+d.i),
     eusave: (d) => euSave(+d.i),
     // auth
-    login: () => { S.authed = true; try { localStorage.setItem('merz_authed', '1'); } catch (e) {} S.view = 'home'; render(); },
+    login: () => { S.authed = true; try { localStorage.setItem('merz_authed', '1'); } catch (e) {} if (!S.onboarded) { S.view = 'onboard'; S.onboardStep = 0; } else { S.view = 'home'; } render(); },
+    obnext: () => { if (S.onboardStep < ONBOARD_STEPS.length - 1) { S.onboardStep++; render(); } else { finishOnboard(); } },
+    obprev: () => { if (S.onboardStep > 0) { S.onboardStep--; render(); } },
+    obskip: () => finishOnboard(),
+    tour: () => { closeProfile(); S.view = 'onboard'; S.onboardStep = 0; render(); },
     logout: () => { closeProfile(); S.authed = false; try { localStorage.removeItem('merz_authed'); } catch (e) {} render(); },
     // manager config
     mgrfields: () => fieldsModal(),
@@ -1123,6 +1203,7 @@
   const VIEWS = { home: viewHome, chat: viewChat, lib: viewLibrary, cert: viewCert, mgr: viewManager, adm: viewAdmin, assess: viewAssess };
   function render() {
     if (!S.authed) { app().innerHTML = viewLogin(); return; }
+    if (S.view === 'onboard') { app().innerHTML = viewOnboard(); return; }
     const role = roleOfView(S.view);
     const active = S.view;
     let activeProduct = null;
