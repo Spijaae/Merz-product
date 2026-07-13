@@ -495,9 +495,9 @@
   ];
 
   const ADMIN_USERS = [
-    { name: 'Karim A.', country: 'UAE', profile: 'mb', completion: '50 of 50', cert: [['p','R'],['p','X'],['p','B']] },
-    { name: 'Nadia F.', country: 'KSA', profile: 'uo', completion: '45 of 50', cert: [['p','U']] },
-    { name: 'Sara M.', country: 'KSA', profile: 'mb', completion: '42 of 50', cert: [['p','R'],['f','X'],['p','B']] }
+    { name: 'Karim A.', country: 'UAE', profile: 'mb', completion: '50 of 50', cert: [['p','R'],['p','X'],['p','B']], products: ['xeomin', 'belotero', 'radiesse', 'ultherapy'] },
+    { name: 'Nadia F.', country: 'KSA', profile: 'uo', completion: '45 of 50', cert: [['p','U']], products: ['ultherapy'] },
+    { name: 'Sara M.', country: 'KSA', profile: 'mb', completion: '42 of 50', cert: [['p','R'],['f','X'],['p','B']], products: ['radiesse', 'xeomin', 'belotero'] }
   ];
 
   const ASSESSMENT_POOLS = [

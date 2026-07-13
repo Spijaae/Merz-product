@@ -63,7 +63,17 @@ python3 -m http.server 8000   # then open http://localhost:8000
 - **Roles & permissions** — separated permission sets (content, PV, assessment, users, KB), combinable, never one super-role
 - Provisioning captures **email + password** (no self-registration)
 
-**Login / front screen** — Merz logo, admin-provisioned sign-in, appearance toggle. Sign out from the profile menu.
+**Login / onboarding** — Merz logo (also the browser-tab favicon), admin-provisioned sign-in,
+appearance toggle. First sign-in opens a full-size, laptop-friendly 3-step onboarding (replayable
+from the profile menu). Sign out from the profile menu.
+
+**Role-based medicine access** — an admin assigns the specific medicines each rep is responsible
+for (Add/Edit user → *Assigned products*). The signed-in rep only sees and handles their assigned
+medicines across the sidebar, Home, and Library. Editing the signed-in rep updates the Rep view live.
+
+**Off-label handling** — off-label questions are **not** auto-routed to Medical Affairs; the
+assistant shows only approved indications and logs the query in the Admin compliance panel where
+Medical Affairs has visibility.
 
 **Part B — Assessment & Certification module** (build plan Part B)
 - **Rep · Certification** — per-brand certification grid, next-due date, cadence, and full assessment history
@@ -87,9 +97,9 @@ js/data.js        # mock knowledge base, documents, reps, admin data
 js/app.js         # state, routing, answer engine, views, modals, theme/persona
 ```
 
-Persisted keys (`localStorage`): `merz_theme`, `merz_authed`, `merz_saved`,
-`merz_dismissed`, `merz_pv`, `merz_gaps`, `merz_users`, `merz_assess`, `merz_mgrcols`.
-Clear them to reset the demo.
+Persisted keys (`localStorage`): `merz_theme`, `merz_authed`, `merz_onboarded`,
+`merz_saved`, `merz_dismissed`, `merz_pv`, `merz_gaps`, `merz_users`, `merz_access`,
+`merz_assess`, `merz_mgrcols`. Clear them to reset the demo.
 
 ## Build-plan coverage
 
