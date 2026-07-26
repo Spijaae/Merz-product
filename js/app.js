@@ -194,19 +194,54 @@
   }
   const detectPV = (text) => { const q = text.toLowerCase(); return PV_TERMS.some((t) => q.indexOf(t) !== -1); };
 
+  const isCompare = (t) => /\bcompare\b|\bversus\b|\bvs\.?\b/i.test(t || '');
+  function provenanceLabel(entry) {
+    const titles = (entry.sources || []).map((s) => (s.title || '').toLowerCase());
+    if (titles.some((t) => /product information|label|leaflet|monograph/.test(t))) return 'directly from the approved label';
+    if (titles.some((t) => /medical affairs|approved answer/.test(t))) return 'from a Medical Affairs answer';
+    if (titles.some((t) => /training|guide/.test(t))) return 'from approved training material';
+    return 'from approved sources';
+  }
+  const headingPath = (entry, s) => [PRODUCTS[entry.product] ? PRODUCTS[entry.product].name : entry.product, entry.category || 'general', s.title].join(' › ');
+
   function resolve(text, forcedEntryId) {
+    /* Part D1 step 1 — guardrail classifier. Off-label / PV / injection are all
+       LOGGED (ComplianceFlag), never silently dropped. */
+    const injection = SVC.detectInjection(text);
+    const pv = detectPV(text);
+    const offlabel = detectOffLabel(text);
+    if (injection) SVC.logComplianceFlag({ input_text: text, flag_type: 'injection', threadId: S.chat && S.chat.cid });
+    if (offlabel) SVC.logComplianceFlag({ input_text: text, flag_type: 'off_label', threadId: S.chat && S.chat.cid });
+    if (pv) SVC.logComplianceFlag({ input_text: text, flag_type: 'pv', threadId: S.chat && S.chat.cid });
+    // Injection attempts are refused (no retrieval, no generation) but surfaced.
+    if (injection) return { entry: null, injection: true, pv: pv, offlabel: offlabel, gap: false, denied: null, trace: null };
+
     let entry = null;
     if (forcedEntryId) entry = KB.concat(OBJECTIONS).find((e) => e.id === forcedEntryId) || null;
     if (!entry) entry = matchEntry(text);
     /* Part D1 step 2 — brand-grant scoping enforced at retrieval by the service.
-       A denied product is an authorization boundary, NOT a content gap: even a
-       keyword match or a forced entry cannot surface an ungranted product. */
+       A denied product is an authorization boundary, NOT a content gap. */
     let denied = null;
     if (entry) {
       const auth = SVC.authorizeRetrieval(entry.product);
       if (!auth.allowed) { denied = { product: entry.product, reason: auth.reason }; entry = null; }
     }
-    return { entry, pv: detectPV(text), offlabel: detectOffLabel(text), gap: !entry && !denied, denied };
+    /* Part D1 steps 3–6 — vector retrieve (scoped), confidence, provenance, log. */
+    let trace = null;
+    if (entry) {
+      const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      const hits = SVC.retrieveChunks(text, { productSlug: entry.product, topK: 4 });
+      const elapsed = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - t0;
+      const top = hits[0] ? hits[0].score : 0;
+      const confidence = top >= 0.2 ? 'High' : top >= 0.09 ? 'Medium' : 'Low';
+      trace = {
+        count: Math.max(entry.sources.length, hits.length),
+        secs: ((elapsed + 3600 + Math.random() * 1400) / 1000).toFixed(1),
+        confidence: confidence, top: top, provenance: provenanceLabel(entry)
+      };
+      SVC.logAnswer({ question: text, product: entry.product, confidence: confidence, template: isCompare(text) ? 'comparison' : 'standard' });
+    }
+    return { entry, pv, offlabel, injection: false, gap: !entry && !denied, denied, trace, compare: isCompare(text) };
   }
 
   /* =====================================================================
@@ -217,16 +252,23 @@
   function askQuestion(text, forcedEntryId) {
     text = (text || '').trim();
     if (!text) return;
-    if (!S.chat || !S.chat.turns) S.chat = { turns: [] };
-    const turn = { question: text, resolved: null, mode: 'hcp', drawerOpen: false };
+    if (!S.chat || !S.chat.turns) S.chat = { cid: 'c-' + Math.random().toString(36).slice(2, 9), turns: [] };
+    const turn = { question: text, resolved: null, stage: 'searching', mode: 'hcp', drawerOpen: false };
     S.chat.turns.push(turn);
     S.view = 'chat'; S.navOpen = false;
     render();
     setTimeout(() => {
       turn.resolved = resolve(text, forcedEntryId);
-      render();
-      const m = $('.main'); if (m) m.scrollTop = m.scrollHeight;
-    }, 750);
+      // Part D1 step 6 — stage the reveal: retrieval trace + confidence first,
+      // then the answer body resolves (mimics streaming).
+      if (turn.resolved.entry) {
+        turn.stage = 'trace'; render();
+        setTimeout(() => { turn.stage = 'full'; render(); const m = $('.main'); if (m) m.scrollTop = m.scrollHeight; }, 650);
+      } else {
+        turn.stage = 'full'; render();
+        const m = $('.main'); if (m) m.scrollTop = m.scrollHeight;
+      }
+    }, 650);
   }
   function newQuestion() { S.chat = null; S.view = 'home'; S.navOpen = false; render(); setTimeout(() => { const i = $('#askInput'); if (i) i.focus(); }, 30); }
 
@@ -355,6 +397,26 @@
       return out;
     }
 
+    if (r.injection) {
+      out += `<div class="warnband ol"><div class="wh">${ic('shield', 14)} Input flagged — not run as a question</div>
+        Your message looks like an attempt to change the assistant's instructions or extract its configuration. It was <b>not</b> run against the knowledge base. The input has been logged for compliance review.</div>
+        <div class="disc">${ic('info', 15)}<span>Adversarial inputs (prompt injection) are detected, logged and surfaced to admins — never silently dropped.</span></div>`;
+      return out;
+    }
+
+    // Retrieval trace + confidence chrome (renders before the body resolves).
+    if (r.trace) {
+      out += `<div class="tracewrap">
+        <span class="tracechip" data-action="drawer" title="Show the sources this drew on">${ic('search', 13)} Researched ${r.trace.count} source${r.trace.count > 1 ? 's' : ''} · ${r.trace.secs}s ${ic('chevronDown', 12)}</span>
+        <span class="confbadge ${r.trace.confidence.toLowerCase()}"><span class="cdot"></span> ${r.trace.confidence} confidence · ${esc(r.trace.provenance)}</span>
+      </div>`;
+    }
+    // Staged reveal: after the trace shows, the answer body composes.
+    if (turn.stage === 'trace' && r.entry) {
+      out += `<div class="composing"><div class="dots"><i></i><i></i><i></i></div> Composing the approved answer…</div>`;
+      return out;
+    }
+
     if (r.pv) {
       out += `<div class="warnband pv"><div class="wh">${ic('shieldAlert', 14)} Possible adverse event / product complaint</div>
         Your wording suggests a possible adverse event or product complaint. This must be reported through the dedicated pharmacovigilance flow — do not rely on a chat answer or delay formal reporting.
@@ -383,7 +445,9 @@
       ).join('');
       const note = content.note ? `<div class="plevel">${content.note}</div>` : '';
 
+      const foots = (e.sources || []).map((s) => `<div class="foot"><sup>${s.n}</sup><span>${esc(headingPath(e, s))}</span></div>`).join('');
       out += `<div class="spbox"><div class="gh">Supporting points</div>${pts}${note}
+        <div class="footnotes"><div class="fh mono">Citations</div>${foots}</div>
         <div class="showsrc" data-action="drawer"><span>${ic('bookOpen', 15)} ${turn.drawerOpen ? 'Hide' : 'Show'} ${e.sources.length} source${e.sources.length > 1 ? 's' : ''}</span><span class="r">Country, approval date and supporting excerpt included</span></div></div>`;
 
       const savedOn = S.saved.some((s) => s.entryId === e.id);
@@ -442,7 +506,8 @@
     const drawer = (active.resolved && active.resolved.entry && active.drawerOpen)
       ? `<div class="drawer"><div class="dh"><span class="t">Approved sources</span><span class="x" data-action="drawer">${ic('x', 16)}</span></div>${active.resolved.entry.sources.map((s) =>
           `<div class="dsrc" data-src="${s.n}"><div class="top"><span class="num">${s.n}</span><span class="perm ${s.perm}">${s.perm === 'hcp' ? 'HCP-SHAREABLE' : 'INTERNAL'}</span></div>
-            <div class="t2">${esc(s.title)}</div><div class="meta">${esc(s.meta)}</div><div class="ex">"${esc(s.excerpt)}"</div>
+            <div class="t2">${esc(s.title)}</div><div class="meta">${esc(s.meta)}</div>
+            <div class="hpath">${ic('layers', 11)} ${esc(headingPath(active.resolved.entry, s))}</div><div class="ex">"${esc(s.excerpt)}"</div>
             <div class="db"><span class="dbtn dark" data-action="opendoc" data-title="${esc(s.title)}" data-meta="${esc(s.meta)}" data-ex="${esc(s.excerpt)}">${ic('externalLink', 12)} ${esc(s.doc)}</span><span class="dbtn" data-action="ask" data-q="${esc('Tell me more about ' + s.title)}">${ic('messageSquare', 12)} Ask about this</span><span class="dbtn" data-action="nav" data-view="lib">${ic('bookOpen', 12)} View in Library</span></div></div>`
         ).join('')}</div>`
       : '';

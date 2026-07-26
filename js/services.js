@@ -387,6 +387,41 @@
     return RAG.retrieve(queryText, chunks, { topK: opts.topK || 4, minScore: opts.minScore });
   }
 
+  /* =============================================================== compliance
+     Guardrail classifiers (Part D1 step 1). Off-label + PV live in the app
+     (they need the KB triggers); prompt-injection is here. All three LOG a
+     ComplianceFlag rather than silently dropping the input. */
+  const INJECTION_PATTERNS = [
+    /ignore\s+(all|any|the|previous|prior)?\s*(previous|prior|above)?\s*instructions/i,
+    /disregard\s+.*(instructions|prompt|rules)/i,
+    /reveal\s+.*(system|instructions|prompt|rules)/i,
+    /(show|print|repeat)\s+.*(system|your)\s+(prompt|instructions)/i,
+    /system\s+prompt/i,
+    /begin\s+document|end\s+document/i,
+    /you\s+are\s+now\b/i,
+    /pretend\s+to\s+be/i,
+    /jailbreak|dan mode|developer mode/i,
+    /override\s+.*(safety|guardrail|filter)/i
+  ];
+  function detectInjection(text) { return INJECTION_PATTERNS.some((re) => re.test(String(text || ''))); }
+
+  let flagSeq = 0;
+  function logComplianceFlag(f) {
+    const flag = { id: 'flag-' + (++flagSeq), user_id: f.userId || session.userId, thread_id: f.threadId || null,
+      input_text: f.input_text, flag_type: f.flag_type, created_at: f.created_at || Date.now() };
+    store.complianceFlags.push(flag);
+    return flag;
+  }
+  function complianceFlags() { return store.complianceFlags.slice(); }
+
+  let ansSeq = 0;
+  function logAnswer(a) {
+    const rec = Object.assign({ id: 'ans-' + (++ansSeq), created_at: Date.now(), user_id: session.userId }, a);
+    store.answers.push(rec);
+    return rec;
+  }
+  function answers() { return store.answers.slice(); }
+
   /* ---------------------------------------------------------------- session */
   function setSession(nameOrId) {
     const u = userByName(nameOrId) || userById(nameOrId);
@@ -426,6 +461,7 @@
     // reset (supports re-init in tests)
     store.products = []; store.documents = []; store.chunks = []; store.users = [];
     store.brandGrants = []; store.permissionSets = [];
+    store.complianceFlags = []; store.answers = [];
     session = { userId: null };
     seedProducts();
     seedUsers();
@@ -465,6 +501,12 @@
     archiveDocument: archiveDocument,
     unarchiveDocument: unarchiveDocument,
     retrieveChunks: retrieveChunks,
+    // compliance + analytics
+    detectInjection: detectInjection,
+    logComplianceFlag: logComplianceFlag,
+    complianceFlags: complianceFlags,
+    logAnswer: logAnswer,
+    answers: answers,
     users: () => store.users.slice(),
     // access control
     grantedProductSlugs: grantedProductSlugs,

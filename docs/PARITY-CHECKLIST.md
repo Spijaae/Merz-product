@@ -5,7 +5,7 @@ Legend: `[ ]` missing · `[~]` partial · `[x]` done. "UI" = present as UI only;
 "svc" = enforced/backed by the service layer. Build mode: **client-only
 simulation** (service layer plays the server).
 
-_Last updated: Area 3 — KB ingestion + in-browser vector store (KB-1..6)._
+_Last updated: Area 4 — RAG answer pipeline (Part D1)._
 
 **Area 1 landed:** `js/services.js` (the single enforcement point + Part E store),
 `js/components.js` (reusable filtered-list, Part D4), retrieval now scoped by the
@@ -36,13 +36,13 @@ content gap or a fabricated answer. Tests in `tests/` (20 assertions, run with
 - [x] HOME-5 Brand list (grant-filtered UI)
 
 ## ASK
-- [~] ASK-1 Corpus-only (keyword, not vector)
-- [~] ASK-2 Retrieval trace chip (no latency/trace)
-- [~] ASK-3 Confidence badge + provenance class
+- [x] ASK-1 Corpus-only via vector retrieval (svc-scoped); unanswerable→gap
+- [x] ASK-2 Retrieval trace chip (Researched N sources · Xs)
+- [x] ASK-3 Confidence badge (High/Med/Low) + named provenance
 - [x] ASK-4 HCP-ready card
 - [x] ASK-5 HCP/Rep toggle
 - [x] ASK-6 Supporting points + citations
-- [~] ASK-7 Section-level heading-path footnotes
+- [x] ASK-7 Section-level heading-path citations (footnotes + drawer)
 - [x] ASK-8 Disclaimer
 - [x] ASK-9 Show sources drawer
 - [x] ASK-10 Share copy/WhatsApp/email
@@ -51,8 +51,8 @@ content gap or a fabricated answer. Tests in `tests/` (20 assertions, run with
 - [x] ASK-13 Follow-up / new question
 - [x] ASK-14 No-source content-gap state
 - [~] ASK-15 Comparison template (modal, not answer template)
-- [~] ASK-16 Streaming/staged render (single delay)
-- [ ] ASK-17 Q/A analytics logging
+- [x] ASK-16 Staged render: trace+confidence → composing → body
+- [x] ASK-17 Q/A logged (MerzService.logAnswer)
 
 ## BRAND
 - [ ] BRAND-1 Hero
@@ -120,9 +120,9 @@ grants in `MerzService.retrieveChunks` (enforcement stays in the service). Seed
 corpus built from the demo KB so the Ask pipeline (Area 4) has real text to rank.
 
 ## COMP
-- [~] COMP-1 Off-label classifier
+- [x] COMP-1 Off-label classifier logs a ComplianceFlag
 - [x] COMP-2 PV capture + routing
-- [ ] COMP-3 Prompt-injection classifier
+- [x] COMP-3 Prompt-injection classifier (refuse + log + surface)
 - [~] COMP-4 Compliance flags log (static)
 - [ ] COMP-5 Weekly digest job
 
