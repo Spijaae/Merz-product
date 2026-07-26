@@ -203,6 +203,43 @@
     return 'from approved sources';
   }
   const headingPath = (entry, s) => [PRODUCTS[entry.product] ? PRODUCTS[entry.product].name : entry.product, entry.category || 'general', s.title].join(' › ');
+  const trimSnippet = (t, n) => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > (n || 130) ? t.slice(0, n || 130).replace(/\s\S*$/, '') + '…' : t; };
+
+  /* Comparison intent → columnar per-brand template (Part D1, ASK-15). Only
+     products the rep is granted are eligible as columns (scoped in service). */
+  function referencedProducts(text) {
+    const q = ' ' + text.toLowerCase() + ' ';
+    const granted = SVC.grantedProductSlugs();
+    const prods = SVC.products().filter((p) => granted.indexOf(p.slug) !== -1);
+    const hit = prods.filter((p) => q.indexOf(' ' + p.display_name.toLowerCase()) !== -1 || (p.aliases || []).some((a) => a && q.indexOf(a) !== -1));
+    if (hit.length >= 2) return hit;
+    if (/\bbrands?\b|portfolio|competitor|neurotoxin|filler|biostimulator/.test(q)) return prods.filter((p) => !p.is_competitor).slice(0, 4);
+    return hit;
+  }
+  function buildComparison(text) {
+    const prods = referencedProducts(text);
+    if (prods.length < 2) return null;
+    const cols = prods.slice(0, 4).map((p) => {
+      const hits = SVC.retrieveChunks(text, { productSlug: p.slug, topK: 1 });
+      const sources = SVC.chunks().filter((c) => c.product_slug === p.slug).length;
+      return { slug: p.slug, name: p.display_name, category: p.category || '—', bestFor: p.description || '—', sources: sources, point: hits[0] ? trimSnippet(hits[0].chunk.text) : 'No approved detail retrieved.' };
+    });
+    return { cols: cols };
+  }
+  function comparisonHtml(cmp) {
+    const cols = cmp.cols;
+    const th = cols.map((c) => `<th>${esc(c.name)}</th>`).join('');
+    const rowvals = (fn) => cols.map((c) => `<td>${fn(c)}</td>`).join('');
+    return `<div class="cmpwrap"><div class="gh">${ic('compare', 14)} Side-by-side comparison</div>
+      <div class="cmpscroll"><table class="cmptable">
+        <tr><th class="rl">Approved dimension</th>${th}</tr>
+        <tr><td class="rl">Category</td>${rowvals((c) => esc(c.category))}</tr>
+        <tr><td class="rl">Best for</td>${rowvals((c) => esc(c.bestFor))}</tr>
+        <tr><td class="rl">Approved sources</td>${rowvals((c) => c.sources + ' indexed')}</tr>
+        <tr><td class="rl">Key approved point</td>${rowvals((c) => esc(c.point))}</tr>
+      </table></div>
+      <div class="disc">${ic('info', 15)}<span>Comparison is assembled from each product's approved sources, scoped to the medicines assigned to you. Present only claims that appear in the locally approved label.</span></div></div>`;
+  }
 
   function resolve(text, forcedEntryId) {
     /* Part D1 step 1 — guardrail classifier. Off-label / PV / injection are all
@@ -215,6 +252,17 @@
     if (pv) SVC.logComplianceFlag({ input_text: text, flag_type: 'pv', threadId: S.chat && S.chat.cid });
     // Injection attempts are refused (no retrieval, no generation) but surfaced.
     if (injection) return { entry: null, injection: true, pv: pv, offlabel: offlabel, gap: false, denied: null, trace: null };
+
+    // Comparison intent → columnar template (short-circuits the prose answer).
+    if (isCompare(text)) {
+      const comparison = buildComparison(text);
+      if (comparison) {
+        SVC.logAnswer({ question: text, product: comparison.cols.map((c) => c.slug).join('+'), confidence: 'High', template: 'comparison' });
+        const totalSources = comparison.cols.reduce((s, c) => s + c.sources, 0);
+        const trace = { count: totalSources, secs: ((3600 + Math.random() * 1400) / 1000).toFixed(1), confidence: 'High', provenance: 'across approved sources', top: 0 };
+        return { entry: null, comparison: comparison, pv: pv, offlabel: offlabel, injection: false, gap: false, denied: null, trace: trace, compare: true };
+      }
+    }
 
     let entry = null;
     if (forcedEntryId) entry = KB.concat(OBJECTIONS).find((e) => e.id === forcedEntryId) || null;
@@ -261,7 +309,7 @@
       turn.resolved = resolve(text, forcedEntryId);
       // Part D1 step 6 — stage the reveal: retrieval trace + confidence first,
       // then the answer body resolves (mimics streaming).
-      if (turn.resolved.entry) {
+      if (turn.resolved.entry || turn.resolved.comparison) {
         turn.stage = 'trace'; render();
         setTimeout(() => { turn.stage = 'full'; render(); const m = $('.main'); if (m) m.scrollTop = m.scrollHeight; }, 650);
       } else {
@@ -412,7 +460,7 @@
       </div>`;
     }
     // Staged reveal: after the trace shows, the answer body composes.
-    if (turn.stage === 'trace' && r.entry) {
+    if (turn.stage === 'trace' && (r.entry || r.comparison)) {
       out += `<div class="composing"><div class="dots"><i></i><i></i><i></i></div> Composing the approved answer…</div>`;
       return out;
     }
@@ -425,6 +473,12 @@
     if (r.offlabel) {
       out += `<div class="warnband ol"><div class="wh">${ic('alertTriangle', 14)} Potentially off-label</div>
         A question about <b>${esc(PRODUCTS[r.offlabel.product].name)} — ${esc(r.offlabel.area)}</b> may fall outside the locally approved indication. ${esc(r.offlabel.note)} Present only approved indications. This question is <b>not auto-routed to Medical Affairs</b> — it's logged in the admin panel so Medical Affairs can review it there. Raise it yourself if the HCP needs more.</div>`;
+    }
+
+    if (r.comparison) {
+      out += comparisonHtml(r.comparison);
+      out += `<div class="seclbl mono">SUGGESTED FOLLOW-UPS</div><div class="fups">${['What are the contraindications?', 'Show approved indications by product', 'Which is best for a specific area?'].map((f) => `<div class="fup" data-action="ask" data-q="${esc(f)}">${esc(f)}</div>`).join('')}</div>`;
+      return out;
     }
 
     if (r.entry) {
@@ -513,8 +567,15 @@
       : '';
 
     const backdrop = (active.resolved && active.resolved.entry && active.drawerOpen) ? '<div class="drawer-backdrop" data-action="drawer"></div>' : '';
+    const brandName = active.resolved && active.resolved.entry ? PRODUCTS[active.resolved.entry.product].name
+      : (active.resolved && active.resolved.comparison ? 'Comparison' : 'Your products');
+    const memory = turns.length;
     return `<div class="chatlayout"><div class="chatmain">
-        <button class="backbtn" data-action="newq">${ic('arrowLeft', 15)} New question</button>
+        <div class="threadhead">
+          <button class="backbtn" data-action="newq">${ic('arrowLeft', 15)} New question</button>
+          <span class="threadmeta">${esc(brandName)} · thread started just now</span>
+          <span class="mempill" title="Retained context items in this thread">${ic('layers', 12)} Memory ${memory}</span>
+        </div>
         ${history}${body}
         <div class="ask"><input id="askInput" placeholder="Ask a follow-up${active.resolved && active.resolved.entry ? ' about ' + PRODUCTS[active.resolved.entry.product].name : ''}..." autocomplete="off"><span class="mic" data-action="mic">${ic('mic', 18)}</span><span class="go" data-action="asksend">${ic('send', 18)}</span></div>
         <div class="voicehint">${ic('volume', 12)} Voice transcribes to text for your confirmation before sending.</div>
@@ -1386,7 +1447,7 @@
       else { S.saved.splice(idx, 1); toast('Removed from saved', 'warn'); }
       save('merz_saved', S.saved); render();
     },
-    fb: (d) => toast(d.v === 'up' ? 'Thanks — marked helpful' : 'Noted — flagged as not helpful for review', d.v === 'up' ? 'good' : 'warn'),
+    fb: (d) => { SVC.recordFeedback(d.v); toast(d.v === 'up' ? 'Thanks — marked helpful' : 'Noted — flagged as not helpful for review', d.v === 'up' ? 'good' : 'warn'); },
     flag: () => toast('Flagged for Medical Affairs review', 'warn'),
     askma: (d) => askMA(d.q),
     masubmit: () => maSubmit(),

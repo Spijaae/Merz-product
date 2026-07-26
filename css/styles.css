@@ -738,3 +738,15 @@ tbody tr:hover{background:var(--hover)}
 .foot{display:flex;gap:8px;font-size:11.5px;color:var(--ink-soft);padding:2px 0}
 .foot sup{color:var(--gray);font-weight:700}
 .hpath{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--gray);margin:3px 0}
+
+/* ===== Thread head + memory pill + comparison template =============== */
+.threadhead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.threadmeta{font-size:12px;color:var(--gray)}
+.mempill{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--ink);background:var(--p2-bg);border:1px solid var(--line);border-radius:999px;padding:4px 10px}
+.cmpwrap{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px;margin:8px 0}
+.cmpwrap .gh{margin-bottom:10px}
+.cmpscroll{overflow-x:auto}
+.cmptable{border-collapse:collapse;width:100%;min-width:460px;font-size:12.5px}
+.cmptable th,.cmptable td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+.cmptable th{background:var(--p1-bg);font-weight:700}
+.cmptable .rl{background:var(--bg);font-weight:600;color:var(--ink-soft);white-space:nowrap;font-size:11px}

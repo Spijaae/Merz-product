@@ -421,6 +421,12 @@
     return rec;
   }
   function answers() { return store.answers.slice(); }
+  function recordFeedback(value) {
+    const mine = store.answers.filter((a) => a.user_id === session.userId);
+    const last = mine[mine.length - 1];
+    if (last) last.feedback = value;
+    return last || null;
+  }
 
   /* ---------------------------------------------------------------- session */
   function setSession(nameOrId) {
@@ -507,6 +513,7 @@
     complianceFlags: complianceFlags,
     logAnswer: logAnswer,
     answers: answers,
+    recordFeedback: recordFeedback,
     users: () => store.users.slice(),
     // access control
     grantedProductSlugs: grantedProductSlugs,

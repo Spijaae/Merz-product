@@ -5,7 +5,7 @@ Legend: `[ ]` missing · `[~]` partial · `[x]` done. "UI" = present as UI only;
 "svc" = enforced/backed by the service layer. Build mode: **client-only
 simulation** (service layer plays the server).
 
-_Last updated: Area 4 — RAG answer pipeline (Part D1)._
+_Last updated: Area 5 — Ask UI polish (memory, feedback, comparison)._
 
 **Area 1 landed:** `js/services.js` (the single enforcement point + Part E store),
 `js/components.js` (reusable filtered-list, Part D4), retrieval now scoped by the
@@ -46,11 +46,11 @@ content gap or a fabricated answer. Tests in `tests/` (20 assertions, run with
 - [x] ASK-8 Disclaimer
 - [x] ASK-9 Show sources drawer
 - [x] ASK-10 Share copy/WhatsApp/email
-- [~] ASK-11 Feedback (not logged)
-- [ ] ASK-12 Memory pill
+- [x] ASK-11 Feedback logged (recordFeedback)
+- [x] ASK-12 Memory pill (per-thread context counter)
 - [x] ASK-13 Follow-up / new question
 - [x] ASK-14 No-source content-gap state
-- [~] ASK-15 Comparison template (modal, not answer template)
+- [x] ASK-15 Comparison template (columnar per-brand, grant-scoped)
 - [x] ASK-16 Staged render: trace+confidence → composing → body
 - [x] ASK-17 Q/A logged (MerzService.logAnswer)
 

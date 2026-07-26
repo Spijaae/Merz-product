@@ -119,6 +119,8 @@
     const a0 = S.answers().length;
     S.logAnswer({ question: 'q', product: 'xeomin', confidence: 'High', template: 'standard' });
     t.eq(S.answers().length, a0 + 1, 'Q/A is logged for analytics');
+    S.recordFeedback('up');
+    t.eq(S.answers()[S.answers().length - 1].feedback, 'up', 'feedback is recorded on the last answer');
 
     /* ---- Area 1: reusable filtered-list (Part D4) ---- */
     const items = [{ name: 'Alpha', cat: 'x' }, { name: 'Beta', cat: 'y' }, { name: 'Gamma', cat: 'x' }];
