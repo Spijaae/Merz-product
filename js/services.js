@@ -129,7 +129,7 @@
         id: doc.id, product_slug: doc.product, blob_path: doc.title.replace(/\s+/g, '_') + '.pdf',
         filename: doc.title, mime: 'application/pdf', page_count: null,
         status: 'active', uploaded_by: 'u-fouad', uploaded_at: doc.updated || null,
-        country: doc.country || null, type: doc.type || null, perm: doc.perm || 'int'
+        country: doc.country || null, type: doc.type || null, perm: doc.perm || 'int', _seed: true
       });
     });
   }
@@ -150,6 +150,7 @@
   }
 
   /* ------------------------------------------------------------------ lookups */
+  function productBySlug(slug) { return store.products.find((p) => p.slug === slug) || null; }
   function userByName(name) { return store.users.find((u) => u.name === name) || null; }
   function userById(id) { return store.users.find((u) => u.id === id) || null; }
   function currentUser() { return userById(session.userId); }
@@ -262,6 +263,130 @@
     });
   }
 
+  /* ================================================================ knowledge
+     KB ingestion pipeline (simulated): upload → parse → chunk (with heading
+     path) → embed → index by product slug → status. Path-based idempotent
+     upsert. Archive ≠ delete. Retrieval is scoped by brand grants. */
+  const FILE_TYPES = ['pdf', 'pptx', 'ppt', 'docx', 'doc', 'odp', 'odt', 'ods', 'xlsx', 'xls', 'rtf'];
+  const MIMES = { pdf: 'application/pdf', pptx: 'application/vnd.openxmlformats', docx: 'application/vnd.openxmlformats', rtf: 'application/rtf' };
+  function extOf(name) { const m = String(name).toLowerCase().match(/\.([a-z0-9]+)$/); return m ? m[1] : ''; }
+  function nowISO() { return new Date().toISOString().slice(0, 10); }
+  function newDocId() { return 'doc-u-' + Math.random().toString(36).slice(2, 9); }
+
+  // Seed a retrievable corpus from the demo KB so the Ask pipeline has real
+  // text to rank. Each approved source becomes a chunk with a heading path.
+  function seedCorpus() {
+    const entries = (D.KB || []).concat(D.OBJECTIONS || []);
+    const byFilename = {};
+    store.documents.forEach((d) => { byFilename[d.filename] = d; });
+    entries.forEach((e) => {
+      const product = productBySlug(e.product);
+      const pname = product ? product.display_name : e.product;
+      const pts = (e.hcp && e.hcp.points ? e.hcp.points.map((p) => String(p.text).replace(/<[^>]+>/g, '')) : []).join(' ');
+      const lead = (e.hcp && e.hcp.lead) || '';
+      (e.sources || []).forEach((s, i) => {
+        let doc = byFilename[s.title];
+        if (!doc) {
+          doc = { id: 'doc-seed-' + e.id + '-' + i, product_slug: e.product, blob_path: s.title.replace(/\s+/g, '_') + '.pdf',
+            filename: s.title, mime: 'application/pdf', page_count: null, status: 'active',
+            uploaded_by: 'u-fouad', uploaded_at: null, country: null, type: null, perm: s.perm || 'int', _seed: true };
+          store.documents.push(doc); byFilename[s.title] = doc;
+        }
+        const pageM = /Page\s+(\d+)/i.exec(s.meta || '');
+        store.chunks.push({
+          id: 'ch-' + e.id + '-' + i, document_id: doc.id, product_slug: e.product,
+          heading_path: [pname, e.category || 'general', s.title], page: pageM ? +pageM[1] : null,
+          text: [s.excerpt, lead, pts].filter(Boolean).join(' '), _seed: true
+        });
+      });
+    });
+  }
+
+  // Synthesize section text for an uploaded binary file we cannot truly parse.
+  function synthText(product, filename) {
+    const p = product ? product.display_name : 'the product';
+    return [
+      '## Overview\n' + p + ' approved source ' + filename + '. Indications, administration and precautions per the locally approved label.',
+      '## Administration\nPreparation and administration of ' + p + ' follow the approved product information; confirm the local label before use.',
+      '## Safety\nContraindications and precautions for ' + p + ' are defined in the approved information; review the full label.'
+    ].join('\n\n');
+  }
+
+  // Split text into chunks, deriving a heading path from "## Heading" markers.
+  function chunkText(text, product) {
+    const pname = product ? product.display_name : '';
+    const blocks = String(text).split(/\n\s*\n/).filter((b) => b.trim());
+    const out = [];
+    blocks.forEach((b, i) => {
+      const hm = /^##\s*(.+)$/m.exec(b);
+      const heading = hm ? hm[1].trim() : 'Section ' + (i + 1);
+      const body = b.replace(/^##\s*.+$/m, '').trim() || b.trim();
+      out.push({ heading_path: [pname, heading].filter(Boolean), text: body, page: i + 1 });
+    });
+    return out.length ? out : [{ heading_path: [pname].filter(Boolean), text: String(text), page: 1 }];
+  }
+
+  function uploadDocument(opts) {
+    opts = opts || {};
+    const product = productBySlug(opts.productSlug);
+    if (!product) return { ok: false, error: 'A product is required.' };
+    if (!product.is_active) return { ok: false, error: 'Product is deactivated.' };
+    const filename = String(opts.filename || '').trim();
+    if (!filename) return { ok: false, error: 'A document file is required.' };
+    const ext = extOf(filename);
+    if (FILE_TYPES.indexOf(ext) === -1) return { ok: false, error: 'Unsupported file type: .' + ext };
+    const blobPath = (String(opts.blobPath || '').trim() || filename);
+    // Idempotent upsert on (product_slug, blob_path): reuse a path to replace.
+    let doc = store.documents.find((d) => d.product_slug === product.slug && d.blob_path === blobPath);
+    const replaced = !!doc;
+    if (doc) {
+      store.chunks = store.chunks.filter((c) => c.document_id !== doc.id);
+      doc.filename = filename; doc.mime = opts.mime || MIMES[ext] || 'application/octet-stream';
+      doc.status = 'parsing'; doc.uploaded_at = nowISO();
+    } else {
+      doc = { id: newDocId(), product_slug: product.slug, blob_path: blobPath, filename: filename,
+        mime: opts.mime || MIMES[ext] || 'application/octet-stream', page_count: null, status: 'parsing',
+        uploaded_by: opts.uploadedBy || session.userId, uploaded_at: nowISO(),
+        country: opts.country || null, type: opts.type || null, perm: opts.perm || 'int' };
+      store.documents.push(doc);
+    }
+    doc._pendingText = opts.text || synthText(product, filename);
+    persist();
+    return { ok: true, doc: doc, replaced: replaced };
+  }
+
+  // Second stage of the pipeline: parse → chunk → embed → index → active.
+  function finalizeIngestion(docId) {
+    const doc = store.documents.find((d) => d.id === docId);
+    if (!doc || doc.status !== 'parsing') return { ok: false };
+    const product = productBySlug(doc.product_slug);
+    const parts = chunkText(doc._pendingText || '', product);
+    parts.forEach((pt, i) => store.chunks.push({
+      id: doc.id + '-c' + i, document_id: doc.id, product_slug: doc.product_slug,
+      heading_path: pt.heading_path, page: pt.page || null, text: pt.text
+    }));
+    doc.page_count = Math.max(1, parts.length);
+    doc.status = 'active';
+    delete doc._pendingText;
+    persist();
+    return { ok: true, chunks: parts.length };
+  }
+
+  function archiveDocument(docId) { const d = store.documents.find((x) => x.id === docId); if (!d) return { ok: false }; d.status = 'archived'; persist(); return { ok: true }; }
+  function unarchiveDocument(docId) { const d = store.documents.find((x) => x.id === docId); if (!d) return { ok: false }; d.status = 'active'; persist(); return { ok: true }; }
+
+  // Scoped retrieval — brand grants enforced here, then ranked by MerzRAG.
+  function retrieveChunks(queryText, opts) {
+    opts = opts || {};
+    const scope = opts.productSlug ? scopeProducts([opts.productSlug]) : grantedProductSlugs();
+    const scopeSet = {}; scope.forEach((s) => { scopeSet[s] = 1; });
+    const activeDocs = {}; store.documents.forEach((d) => { if (d.status === 'active') activeDocs[d.id] = 1; });
+    const chunks = store.chunks.filter((c) => scopeSet[c.product_slug] && (!c.document_id || activeDocs[c.document_id]));
+    const RAG = global.MerzRAG;
+    if (!RAG) return [];
+    return RAG.retrieve(queryText, chunks, { topK: opts.topK || 4, minScore: opts.minScore });
+  }
+
   /* ---------------------------------------------------------------- session */
   function setSession(nameOrId) {
     const u = userByName(nameOrId) || userById(nameOrId);
@@ -273,8 +398,15 @@
   /* -------------------------------------------------------------- persistence
      We persist only the mutable overlay (session + grants + permission sets),
      not the whole seeded catalog, so seed changes flow through on reload. */
+  // Strip internal (underscore-prefixed) keys from persisted objects.
+  function clean(list) { return (list || []).map((o) => { const c = {}; for (const k in o) if (k[0] !== '_') c[k] = o[k]; return c; }); }
   function persist() {
-    lsSet(LS_KEY, { session: session, products: store.products, brandGrants: store.brandGrants, permissionSets: store.permissionSets });
+    lsSet(LS_KEY, {
+      session: session, products: store.products, brandGrants: store.brandGrants, permissionSets: store.permissionSets,
+      // only user-added (non-seed) documents/chunks are persisted; the seed corpus is regenerated each init.
+      documents: clean(store.documents.filter((d) => !d._seed)),
+      chunks: clean(store.chunks.filter((c) => !c._seed))
+    });
   }
   function restore() {
     const saved = lsGet(LS_KEY);
@@ -283,6 +415,8 @@
     mergeProducts(saved.products);
     if (Array.isArray(saved.brandGrants)) store.brandGrants = saved.brandGrants;
     if (Array.isArray(saved.permissionSets)) store.permissionSets = saved.permissionSets;
+    if (Array.isArray(saved.documents)) saved.documents.forEach((d) => { if (!store.documents.some((x) => x.id === d.id)) store.documents.push(d); });
+    if (Array.isArray(saved.chunks)) saved.chunks.forEach((c) => { if (!store.chunks.some((x) => x.id === c.id)) store.chunks.push(c); });
   }
 
   /* --------------------------------------------------------------------- init */
@@ -290,12 +424,13 @@
   function init(opts) {
     if (initialized && !(opts && opts.force)) return api;
     // reset (supports re-init in tests)
-    store.products = []; store.documents = []; store.users = [];
+    store.products = []; store.documents = []; store.chunks = []; store.users = [];
     store.brandGrants = []; store.permissionSets = [];
     session = { userId: null };
     seedProducts();
     seedUsers();
     seedDocuments();
+    seedCorpus();
     setSession('Karim A.'); // the signed-in rep persona
     if (!(opts && opts.fresh)) restore();
     initialized = true;
@@ -321,6 +456,15 @@
     updateProduct: updateProduct,
     setProductActive: setProductActive,
     documents: () => store.documents.slice(),
+    documentsByStatus: (st) => store.documents.filter((d) => d.status === st),
+    chunks: () => store.chunks.slice(),
+    chunksForDocument: (id) => store.chunks.filter((c) => c.document_id === id),
+    FILE_TYPES: FILE_TYPES,
+    uploadDocument: uploadDocument,
+    finalizeIngestion: finalizeIngestion,
+    archiveDocument: archiveDocument,
+    unarchiveDocument: unarchiveDocument,
+    retrieveChunks: retrieveChunks,
     users: () => store.users.slice(),
     // access control
     grantedProductSlugs: grantedProductSlugs,

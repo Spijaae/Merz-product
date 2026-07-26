@@ -674,3 +674,44 @@ tbody tr:hover{background:var(--hover)}
   .prow .ps,.prow .pc{grid-column:1}
   .prow .pa{grid-column:1/-1;justify-content:flex-start}
 }
+
+/* ===== Knowledge base (KB list + upload) ============================= */
+.kbtabs{display:flex;gap:6px}
+.kbtab{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;color:var(--ink-soft)}
+.kbtab.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.kbtab .c{opacity:.7;margin-left:4px}
+.kbtop-actions{display:flex;gap:8px;margin-left:auto}
+.prodtop{align-items:center;gap:10px}
+.kbhead,.kbrow{display:grid;grid-template-columns:2.4fr 1.1fr .9fr .9fr .9fr .9fr;align-items:center;gap:10px;padding:11px 16px}
+.kbhead{font-family:'SF Mono',Menlo,monospace;text-transform:uppercase;letter-spacing:.1em;font-size:9.5px;color:var(--gray);padding-bottom:6px}
+.kbrow{border-top:1px solid var(--line-soft);font-size:13px}
+.fl-rows .kbrow:first-child{border-top:none}
+.kbn{display:flex;align-items:center;gap:9px;color:var(--gray)}
+.kbnm{display:flex;flex-direction:column;gap:2px;color:var(--ink);min-width:0}
+.kbnm b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kbpath{font-size:10.5px;color:var(--gray)}
+.kbc,.kbd{color:var(--ink-soft);font-size:12px}
+.kba{display:flex;justify-content:flex-end}
+.sbadge.parsing{color:var(--ink-soft)}
+.sbadge.parsing::before{background:#c99a2e;animation:kbpulse 1s infinite}
+.sbadge.fail::before{background:#c0203a}
+@keyframes kbpulse{0%,100%{opacity:1}50%{opacity:.3}}
+.kbform{max-width:640px;display:flex;flex-direction:column;gap:18px;margin-top:14px}
+.kbfield{display:flex;flex-direction:column;gap:7px}
+.kbl{font-size:12px;font-weight:700}
+.kbl .opt,.opt{font-weight:500;color:var(--gray);font-size:11px}
+.kbdrop{position:relative;border:1.5px dashed var(--line);border-radius:14px;padding:26px;text-align:center;cursor:pointer;background:var(--card);transition:border-color .15s,background .15s}
+.kbdrop:hover,.kbdrop.drag{border-color:var(--ink);background:var(--raised)}
+.kbdrop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.kbdrop-in{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--gray)}
+.kbdrop-t{font-size:14px;font-weight:600;color:var(--ink)}
+.kbdrop-s{font-size:11.5px}
+.ftchips{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.ftchip{font-family:'SF Mono',Menlo,monospace;font-size:9.5px;background:var(--good-bg);color:var(--good-ink);border-radius:5px;padding:3px 7px;letter-spacing:.05em}
+.kbform select,.kbform input{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:10px 12px;font-size:13.5px;color:var(--ink);width:100%}
+.kbsubmit{align-self:flex-start}
+@media(max-width:720px){
+  .kbhead{display:none}
+  .kbrow{grid-template-columns:1fr auto;row-gap:4px}
+  .kbrow .kba{grid-column:1/-1;justify-content:flex-start}
+}

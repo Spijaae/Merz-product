@@ -5,7 +5,7 @@ Legend: `[ ]` missing · `[~]` partial · `[x]` done. "UI" = present as UI only;
 "svc" = enforced/backed by the service layer. Build mode: **client-only
 simulation** (service layer plays the server).
 
-_Last updated: Area 2 — product catalog (PROD-1..4)._
+_Last updated: Area 3 — KB ingestion + in-browser vector store (KB-1..6)._
 
 **Area 1 landed:** `js/services.js` (the single enforcement point + Part E store),
 `js/components.js` (reusable filtered-list, Part D4), retrieval now scoped by the
@@ -107,13 +107,17 @@ content gap or a fabricated answer. Tests in `tests/` (20 assertions, run with
 - [x] PROD-3 Competitor products (neutral placeholders; first-class + flagged)
 - [x] PROD-4 Deactivate ≠ delete (archives; excluded from grants + retrieval)
 
-## KB
-- [ ] KB-1 Document list + status
-- [ ] KB-2 Upload 11 file types
-- [ ] KB-3 Parse→chunk→embed→index
-- [ ] KB-4 Path-based upsert
-- [ ] KB-5 Archive
-- [ ] KB-6 Status lifecycle
+## KB  (Area 3)
+- [x] KB-1 Document list + Documents/Archived tabs + filter-by-path + Refresh (`viewKB`)
+- [x] KB-2 Upload (11 file types validated) → namespaced by product slug + blob path
+- [x] KB-3 Parse→chunk (heading path)→embed (TF-IDF via `js/rag.js`)→index by slug
+- [x] KB-4 Path-based idempotent upsert (reuse path = replace, no dup)
+- [x] KB-5 Archive ≠ delete (excluded from retrieval; restorable)
+- [x] KB-6 Status lifecycle parsing→active (simulated ~2.5s; copy says ~30–90s)
+
+**Vector store:** `js/rag.js` — real TF-IDF + cosine retrieval, scoped by brand
+grants in `MerzService.retrieveChunks` (enforcement stays in the service). Seed
+corpus built from the demo KB so the Ask pipeline (Area 4) has real text to rank.
 
 ## COMP
 - [~] COMP-1 Off-label classifier

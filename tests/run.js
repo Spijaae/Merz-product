@@ -19,7 +19,7 @@ function loadJs(rel) {
   (0, eval)(code); // indirect eval → runs in global scope
 }
 
-['../js/data.js', '../js/services.js', '../js/components.js', './tests.js'].forEach(loadJs);
+['../js/data.js', '../js/rag.js', '../js/services.js', '../js/components.js', './tests.js'].forEach(loadJs);
 
 let pass = 0, fail = 0;
 const line = (ok, m) => console.log((ok ? '  ok   ' : ' FAIL  ') + m);

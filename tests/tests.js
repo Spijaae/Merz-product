@@ -73,6 +73,40 @@
     // competitor flag
     t.ok(S.productBySlug('competitor-tox-a').is_competitor, 'competitor products are first-class + flagged');
 
+    /* ---- Area 3: KB ingestion + scoped vector retrieval ---- */
+    S.init({ fresh: true });
+    S.setSession('Karim A.');
+    // seed corpus is retrievable and scoped by grants
+    const r1 = S.retrieveChunks('How should Xeomin be reconstituted?', { productSlug: 'xeomin' });
+    t.ok(r1.length > 0 && r1[0].chunk.product_slug === 'xeomin', 'seed corpus retrieves a scoped chunk');
+    t.ok(Array.isArray(r1[0].chunk.heading_path) && r1[0].chunk.heading_path.length >= 2, 'chunk carries a heading path (section-level citation)');
+    // retrieval is denied for a product the rep is not granted
+    const karim2 = S.userByName('Karim A.');
+    S.setBrandGrants(karim2.id, S.ownProductSlugs().filter((s) => s !== 'radiesse'));
+    t.eq(S.retrieveChunks('Radiesse contraindications', { productSlug: 'radiesse' }).length, 0, 'retrieval returns nothing for an ungranted product (enforced)');
+    S.setBrandGrants(karim2.id, S.ownProductSlugs().slice());
+
+    // upload → parse → chunk → embed → index lifecycle
+    const up = S.uploadDocument({ productSlug: 'xeomin', filename: 'Xeomin_New_Guide.pdf', blobPath: 'xeomin/new-guide.pdf' });
+    t.ok(up.ok && up.doc.status === 'parsing', 'upload creates a document in parsing status');
+    const fin = S.finalizeIngestion(up.doc.id);
+    t.ok(fin.ok && fin.chunks > 0, 'finalize parses+chunks+indexes into active');
+    t.eq(S.productBySlug('xeomin') && up.doc.status, 'active', 'document becomes active after ingestion');
+    t.ok(S.chunksForDocument(up.doc.id).length > 0, 'chunks are indexed for the document');
+    // unsupported type + path-based upsert
+    t.ok(!S.uploadDocument({ productSlug: 'xeomin', filename: 'notes.txtx' }).ok, 'unsupported file type rejected');
+    const docsBefore = S.documents().length;
+    const up2 = S.uploadDocument({ productSlug: 'xeomin', filename: 'Xeomin_New_Guide_v2.pdf', blobPath: 'xeomin/new-guide.pdf' });
+    t.ok(up2.ok && up2.replaced && S.documents().length === docsBefore, 'reusing a blob path replaces the document (no duplicate)');
+    // archive ≠ delete + excluded from retrieval
+    S.finalizeIngestion(up2.doc.id);
+    S.archiveDocument(up2.doc.id);
+    t.ok(S.documentsByStatus('archived').some((d) => d.id === up2.doc.id), 'archived document is kept (not deleted)');
+    const activeIds = S.documentsByStatus('active').map((d) => d.id);
+    t.ok(activeIds.indexOf(up2.doc.id) === -1, 'archived document drops out of the active set');
+
+    S.init({ fresh: true });
+
     /* ---- Area 1: reusable filtered-list (Part D4) ---- */
     const items = [{ name: 'Alpha', cat: 'x' }, { name: 'Beta', cat: 'y' }, { name: 'Gamma', cat: 'x' }];
     t.eq(UI.applyFilters({ items: items, query: 'be', searchKeys: ['name'] }).length, 1, 'filtered-list: text search');

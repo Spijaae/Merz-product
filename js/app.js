@@ -52,6 +52,7 @@
     mgrCols: load('merz_mgrcols', null) || { q30: true, completion: true, last: true, cert: true, next: true },
     qFilter: { product: 'all', origin: 'all', status: 'all' },
     prodFilter: { q: '', type: 'all', status: 'all' },
+    kb: { tab: 'active', q: '', parsingDocId: null, fileName: '', product: '' },
     assess: {
       threshold: storedAssess.threshold != null ? storedAssess.threshold : 80,
       cert: storedAssess.cert || clone(REP_CERT),
@@ -229,7 +230,7 @@
   }
   function newQuestion() { S.chat = null; S.view = 'home'; S.navOpen = false; render(); setTimeout(() => { const i = $('#askInput'); if (i) i.focus(); }, 30); }
 
-  const ADMIN_VIEWS = ['adm', 'assess', 'products', 'kb'];
+  const ADMIN_VIEWS = ['adm', 'assess', 'products', 'kb', 'kbadd'];
   const roleOfView = (v) => (v === 'mgr' ? 'mgr' : ADMIN_VIEWS.indexOf(v) !== -1 ? 'adm' : 'rep');
 
   /* =====================================================================
@@ -240,7 +241,7 @@
     const badge = PERSONA[role];
     let showProds = true, gate = '';
     if (role === 'mgr') { showProds = false; gate = `<div class="gate"><a data-action="nav" data-view="mgr" class="on"><span class="ic">${ic('barChart', 17)}</span> Team Pulse</a></div>`; }
-    else if (role === 'adm') { showProds = false; gate = `<div class="gate"><a data-action="nav" data-view="mgr"><span class="ic">${ic('barChart', 17)}</span> Team Pulse</a><a data-action="nav" data-view="assess" class="${active === 'assess' ? 'on' : ''}"><span class="ic">${ic('graduationCap', 17)}</span> Assessments</a><a data-action="nav" data-view="products" class="${active === 'products' ? 'on' : ''}"><span class="ic">${ic('clipboardList', 17)}</span> Products</a><a data-action="nav" data-view="adm" class="${active === 'adm' ? 'on' : ''}"><span class="ic">${ic('settings', 17)}</span> Admin</a></div>`; }
+    else if (role === 'adm') { showProds = false; gate = `<div class="gate"><a data-action="nav" data-view="mgr"><span class="ic">${ic('barChart', 17)}</span> Team Pulse</a><a data-action="nav" data-view="assess" class="${active === 'assess' ? 'on' : ''}"><span class="ic">${ic('graduationCap', 17)}</span> Assessments</a><a data-action="nav" data-view="products" class="${active === 'products' ? 'on' : ''}"><span class="ic">${ic('clipboardList', 17)}</span> Products</a><a data-action="nav" data-view="kb" class="${active === 'kb' || active === 'kbadd' ? 'on' : ''}"><span class="ic">${ic('layers', 17)}</span> Knowledge base</a><a data-action="nav" data-view="adm" class="${active === 'adm' ? 'on' : ''}"><span class="ic">${ic('settings', 17)}</span> Admin</a></div>`; }
 
     const navHtml = repNav.map((n) =>
       `<a data-action="nav" data-view="${n[0]}" class="${active === n[0] ? 'on' : ''}"><span class="ic">${ic(n[1], 17)}</span> ${n[2]}</a>`
@@ -682,6 +683,102 @@
     else { data.slug = v('pmSlug'); res = SVC.addProduct(data); }
     if (!res.ok) { const e = document.getElementById('pmErr'); if (e) { e.textContent = res.error; e.classList.add('show'); } return; }
     closeModal(); toast(slug ? 'Product updated' : 'Product added to the catalog', 'good'); render();
+  }
+
+  function kbUpload() {
+    const fileEl = document.getElementById('kbFile');
+    const prod = (document.getElementById('kbProduct') || {}).value || '';
+    const path = (document.getElementById('kbPath') || {}).value || '';
+    const file = fileEl && fileEl.files && fileEl.files[0];
+    const err = document.getElementById('kbErr');
+    if (!file || !prod) { if (err) { err.textContent = 'A file and a product are required.'; err.classList.add('show'); } return; }
+    const finish = (text) => {
+      const res = SVC.uploadDocument({ productSlug: prod, filename: file.name, blobPath: path, text: text });
+      if (!res.ok) { if (err) { err.textContent = res.error; err.classList.add('show'); } return; }
+      const id = res.doc.id;
+      S.kb.parsingDocId = id; S.kb.tab = 'active'; S.kb.fileName = ''; S.kb.product = '';
+      go('kb');
+      toast(res.replaced ? 'Replacing the document at that path — parsing & indexing…' : 'Uploading — parsing & indexing…', 'good');
+      setTimeout(() => { SVC.finalizeIngestion(id); if (S.kb.parsingDocId === id) S.kb.parsingDocId = null; render(); toast('Indexed — answers can now cite this document', 'good'); }, 2500);
+    };
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (ext === 'rtf' && file.text) { file.text().then(finish).catch(() => finish(null)); }
+    else finish(null);
+  }
+
+  /* =====================================================================
+     KNOWLEDGE BASE — vector store (KB-1..6)
+     ===================================================================== */
+  const STATUS_BADGE = {
+    parsing: '<span class="sbadge parsing">parsing…</span>',
+    active: '<span class="sbadge on">active</span>',
+    archived: '<span class="sbadge off">archived</span>',
+    failed: '<span class="sbadge fail">failed</span>'
+  };
+  function kbRow(d) {
+    const prod = SVC.productBySlug(d.product_slug);
+    const chunks = SVC.chunksForDocument(d.id).length;
+    const act = d.status === 'archived'
+      ? `<button class="btn-sm" data-action="kbrestore" data-id="${esc(d.id)}">${ic('refreshCw', 12)} Restore</button>`
+      : (d.status === 'active' ? `<button class="btn-sm warn" data-action="kbarchive" data-id="${esc(d.id)}">${ic('ban', 12)} Archive</button>` : '');
+    return `<div class="kbrow">
+      <span class="kbn">${ic('fileText', 15)}<span class="kbnm"><b>${esc(d.filename)}</b><span class="kbpath code">${esc(d.blob_path)}</span></span></span>
+      <span>${prod ? esc(prod.display_name) : esc(d.product_slug)}</span>
+      <span>${STATUS_BADGE[d.status] || esc(d.status)}</span>
+      <span class="kbc">${d.status === 'active' ? chunks + ' chunks' : (d.status === 'parsing' ? '—' : chunks + ' chunks')}</span>
+      <span class="kbd">${esc(d.uploaded_at || '—')}</span>
+      <span class="kba">${act}</span></div>`;
+  }
+  function viewKB() {
+    const f = S.kb;
+    const docs = SVC.documents();
+    const activeCount = docs.filter((d) => d.status !== 'archived').length;
+    const archivedCount = docs.filter((d) => d.status === 'archived').length;
+    const shown = docs.filter((d) => f.tab === 'archived' ? d.status === 'archived' : d.status !== 'archived');
+    const list = MerzUI.filteredListHtml({
+      items: shown, query: f.q, searchKeys: ['filename', 'blob_path'],
+      searchAction: 'kbsearch', searchId: 'kbInput', icon: ic('search', 16),
+      searchPlaceholder: 'Filter by path…',
+      countLabel: (n, total) => n + ' of ' + total + ' documents',
+      rowRenderer: kbRow,
+      emptyHtml: '<div class="fl-empty">No documents.</div>'
+    });
+    return `
+      <div class="hero"><div class="date mono">ADMIN · KNOWLEDGE BASE</div><h1>Knowledge base</h1>
+        <div class="sub">Every document in the vector store and its parse/embed status, newest first. Access to a document's answers is gated by the product it's namespaced under.</div></div>
+      <div class="prodtop">
+        <div class="kbtabs">
+          <button class="kbtab ${f.tab === 'active' ? 'on' : ''}" data-action="kbtab" data-t="active">Documents <span class="c">${activeCount}</span></button>
+          <button class="kbtab ${f.tab === 'archived' ? 'on' : ''}" data-action="kbtab" data-t="archived">Archived <span class="c">${archivedCount}</span></button>
+        </div>
+        <div class="kbtop-actions"><button class="btn-sm" data-action="kbrefresh">${ic('refreshCw', 13)} Refresh</button><button class="btn-dark" data-action="kbaddnav">${ic('plus', 14)} Add data to vector store</button></div>
+      </div>
+      <div class="kbhead"><span>Document</span><span>Product</span><span>Status</span><span>Chunks</span><span>Uploaded</span><span></span></div>
+      ${list}`;
+  }
+  function viewKBAdd() {
+    const parsing = S.kb.parsingDocId && SVC.documents().find((d) => d.id === S.kb.parsingDocId && d.status === 'parsing');
+    const prodOpts = SVC.activeProducts().map((p) => `<option value="${esc(p.slug)}" ${S.kb.product === p.slug ? 'selected' : ''}>${esc(p.display_name)}${p.is_competitor ? ' (competitor)' : ''}</option>`).join('');
+    const chips = SVC.FILE_TYPES.map((t) => `<span class="ftchip">${t.toUpperCase()}</span>`).join('');
+    return `
+      <div class="hero"><div class="date mono">ADMIN · KNOWLEDGE BASE</div><h1>Add data to vector store</h1>
+        <div class="sub">Upload a document to add it to the product knowledge base. Files are parsed, embedded, and indexed automatically — allow ~30–90 seconds before answers can cite it. Re-uploading the same path replaces that document.</div></div>
+      <button class="backbtn" data-action="nav" data-view="kb">${ic('arrowLeft', 15)} Back to knowledge base</button>
+      ${parsing ? `<div class="mbanner blue" style="margin:12px 0">${ic('refreshCw', 16)}<span><b>${esc(parsing.filename)}</b> is parsing, embedding and indexing… it will appear as <b>Active</b> in the list shortly.</span></div>` : ''}
+      <div class="kbform">
+        <label class="kbfield"><span class="kbl">Document <span class="req">*</span></span>
+          <label class="kbdrop" id="kbDrop"><input type="file" id="kbFile" accept=".pdf,.pptx,.ppt,.docx,.doc,.odp,.odt,.ods,.xlsx,.xls,.rtf">
+            <span class="kbdrop-in">${ic('fileText', 22)}<span class="kbdrop-t">${S.kb.fileName ? esc(S.kb.fileName) : 'Drag &amp; drop or browse'}</span><span class="kbdrop-s">A single document, up to a few hundred pages</span></span></label>
+          <div class="ftchips">${chips}</div></label>
+        <label class="kbfield"><span class="kbl">Product <span class="req">*</span></span>
+          <select id="kbProduct" data-action="kbprod"><option value="">Select a product…</option>${prodOpts}</select>
+          <span class="hint">The document is namespaced by product so retrieval can scope it and gate access.</span></label>
+        <label class="kbfield"><span class="kbl">Blob path <span class="opt">optional</span></span>
+          <input id="kbPath" class="code" placeholder="defaults to the filename">
+          <span class="hint">The path is the document's identity. Reuse a path to update one; use distinct paths for distinct documents.</span></label>
+        <div class="merr" id="kbErr">A file and a product are required.</div>
+        <button class="mbtn primary kbsubmit" data-action="kbupload">${ic('layers', 14)} Upload to knowledge base</button>
+      </div>`;
   }
 
   /* =====================================================================
@@ -1304,6 +1401,15 @@
     prodftype: () => { const o = ['all', 'own', 'competitor']; S.prodFilter.type = o[(o.indexOf(S.prodFilter.type) + 1) % o.length]; render(); },
     prodfstat: () => { const o = ['all', 'active', 'archived']; S.prodFilter.status = o[(o.indexOf(S.prodFilter.status) + 1) % o.length]; render(); },
     prodsave: (d) => prodSave(d.slug),
+    // Knowledge base
+    kbaddnav: () => { S.kb.fileName = ''; S.kb.product = ''; go('kbadd'); },
+    kbtab: (d) => { S.kb.tab = d.t; render(); },
+    kbsearch: () => { const i = $('#kbInput'); if (i) { S.kb.q = i.value; render(); } },
+    kbrefresh: () => { render(); toast('Knowledge base refreshed', 'good'); },
+    kbprod: (d, el) => { S.kb.product = el.value; },
+    kbupload: () => kbUpload(),
+    kbarchive: (d) => { SVC.archiveDocument(d.id); toast('Document archived — hidden from answers; history kept', 'warn'); render(); },
+    kbrestore: (d) => { SVC.unarchiveDocument(d.id); toast('Document restored to the vector store', 'good'); render(); },
     close: () => closeModal()
   };
 
@@ -1317,17 +1423,38 @@
     const el = ev.target.closest('[data-action="poolmix"]');
     if (el && ACTIONS.poolmix) ACTIONS.poolmix(el.dataset, el, ev);
   });
+  document.addEventListener('change', (ev) => {
+    if (ev.target.id === 'kbFile') {
+      const f = ev.target.files && ev.target.files[0];
+      const t = document.querySelector('#kbDrop .kbdrop-t');
+      if (t) t.textContent = f ? f.name : 'Drag & drop or browse';
+    }
+  });
+  function wireKbDrop() {
+    const drop = document.getElementById('kbDrop'), fi = document.getElementById('kbFile');
+    if (!drop || !fi) return;
+    ['dragover', 'dragenter'].forEach((e) => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.add('drag'); }));
+    ['dragleave', 'dragend'].forEach((e) => drop.addEventListener(e, () => drop.classList.remove('drag')));
+    drop.addEventListener('drop', (ev) => {
+      ev.preventDefault(); drop.classList.remove('drag');
+      if (ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files.length) {
+        try { fi.files = ev.dataTransfer.files; } catch (_) {}
+        const t = drop.querySelector('.kbdrop-t'); if (t) t.textContent = ev.dataTransfer.files[0].name;
+      }
+    });
+  }
   document.addEventListener('keydown', (ev) => {
     if (ev.key !== 'Enter') return;
     if (ev.target.id === 'askInput') { ev.preventDefault(); askQuestion(ev.target.value); }
     if (ev.target.id === 'libInput') { ev.preventDefault(); S.lib.q = ev.target.value; render(); }
     if (ev.target.id === 'prodInput') { ev.preventDefault(); S.prodFilter.q = ev.target.value; render(); }
+    if (ev.target.id === 'kbInput') { ev.preventDefault(); S.kb.q = ev.target.value; render(); }
   });
 
   /* =====================================================================
      RENDER
      ===================================================================== */
-  const VIEWS = { home: viewHome, chat: viewChat, lib: viewLibrary, cert: viewCert, mgr: viewManager, adm: viewAdmin, assess: viewAssess, products: viewProducts };
+  const VIEWS = { home: viewHome, chat: viewChat, lib: viewLibrary, cert: viewCert, mgr: viewManager, adm: viewAdmin, assess: viewAssess, products: viewProducts, kb: viewKB, kbadd: viewKBAdd };
   function render() {
     if (!S.authed) { app().innerHTML = viewLogin(); return; }
     if (S.view === 'onboard') { app().innerHTML = viewOnboard(); return; }
@@ -1343,6 +1470,8 @@
     app().innerHTML = `<div class="shell${S.navOpen ? ' nav-open' : ''}">${sidebar(role, active, activeProduct)}<div class="nav-backdrop" data-action="closenav"></div><div class="workarea">${appbar(role)}<main class="main">${content}</main></div></div>`;
     if (S.view === 'lib') { const i = $('#libInput'); if (i && S.lib.q) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
     if (S.view === 'products') { const i = $('#prodInput'); if (i && S.prodFilter.q) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+    if (S.view === 'kb') { const i = $('#kbInput'); if (i && S.kb.q) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+    if (S.view === 'kbadd') wireKbDrop();
   }
 
   SVC.init();               // seed the service store (Part E) + session
