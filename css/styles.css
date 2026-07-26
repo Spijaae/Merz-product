@@ -778,3 +778,31 @@ tbody tr:hover{background:var(--hover)}
 .bdiff .dd{font-size:13px;font-weight:500}
 .bkb{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px;font-size:13px}
 @media(max-width:720px){.statcards{grid-template-columns:1fr}}
+
+/* ===== Assessment: pre-flight, confidence, official/practice (Area 7) === */
+.preflight{background:var(--bg);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.pf-row{display:flex;justify-content:space-between;padding:11px 14px;border-top:1px solid var(--line-soft);font-size:13px}
+.pf-row:first-child{border-top:none}
+.pf-row .pf-l{color:var(--gray)}
+.attempt-toggle{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.att{text-align:left;border:1.5px solid var(--line);background:var(--card);border-radius:12px;padding:13px;cursor:pointer;display:flex;flex-direction:column;gap:4px}
+.att b{display:flex;align-items:center;gap:7px;font-size:13.5px}
+.att span{font-size:11px;color:var(--gray)}
+.att.on{border-color:var(--ink);background:var(--raised)}
+.attpill{font-size:9px;font-weight:800;letter-spacing:.08em;padding:2px 7px;border-radius:5px;margin-left:8px;vertical-align:middle}
+.attpill.off{background:var(--good-bg);color:var(--good-ink)}
+.attpill.prac{background:var(--warn-bg);color:var(--warn-ink)}
+.confbox{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)}
+.confl{color:var(--gray);display:block;margin-bottom:7px}
+.confopts{display:flex;gap:8px;flex-wrap:wrap}
+.confopt{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;color:var(--ink-soft)}
+.confopt.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.qid{margin-left:auto;color:var(--gray);font-size:9.5px}
+.confmiss{font-size:9.5px;font-weight:700;background:var(--warn-bg);color:var(--warn-ink);border-radius:5px;padding:2px 7px;margin-left:8px;text-transform:uppercase;letter-spacing:.05em}
+.mexp{font-size:12px;color:var(--ink-soft);margin:4px 0 2px}
+.resume-banner{display:flex;align-items:center;gap:11px;background:var(--p2-bg);border:1px solid var(--line);border-radius:12px;padding:12px 15px;margin:12px 0;font-size:13px}
+.resume-banner .mbtn{margin-left:auto}
+
+.poolrow.perattempt{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft);font-size:13px;margin-bottom:8px}
+.stepper{display:inline-flex;align-items:center;gap:12px}
+.stepper b{min-width:20px;text-align:center}

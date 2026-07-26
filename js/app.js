@@ -63,11 +63,13 @@
       approved: storedAssess.approved || [],
       retired: storedAssess.retired || [],
       custom: storedAssess.custom || [],
+      attempts: storedAssess.attempts || [],
+      perAttempt: storedAssess.perAttempt || 6,
       run: null
     }
   };
   function saveAssess() {
-    save('merz_assess', { threshold: S.assess.threshold, cert: S.assess.cert, pools: S.assess.pools, approved: S.assess.approved, retired: S.assess.retired, custom: S.assess.custom });
+    save('merz_assess', { threshold: S.assess.threshold, cert: S.assess.cert, pools: S.assess.pools, approved: S.assess.approved, retired: S.assess.retired, custom: S.assess.custom, attempts: S.assess.attempts, perAttempt: S.assess.perAttempt });
   }
   /* --------------------------------------------------------- product access
      Role-based entitlement: an admin assigns which medicines each rep may
@@ -1163,7 +1165,8 @@
       </div>
       <div class="seclbl mono">CERTIFICATION BY BRAND</div>
       <div class="certgrid">${cards}</div>
-      <div class="cta-assess"><div><div class="h">Ready to take your assessment?</div><div class="d">A short, source-grounded knowledge check. Auto-scored against the ${S.assess.threshold}% threshold. A fail can be re-taken — this is a training tool, not a gate.</div></div>
+      ${(function () { const sv = load('merz_assessrun', null); return sv && !sv.done ? `<div class="resume-banner">${ic('refreshCw', 16)}<span>You have an assessment in progress (question ${(sv.idx || 0) + 1}). Your answers are saved.</span><button class="mbtn primary" data-action="resumeassess">Resume</button></div>` : ''; })()}
+      <div class="cta-assess"><div><div class="h">Ready to take your assessment?</div><div class="d">A short, source-grounded knowledge check. Choose an official attempt (counts toward certification) or a practice run. Auto-scored against the ${S.assess.threshold}% threshold. A fail can be re-taken — this is a training tool, not a gate.</div></div>
         <button class="mbtn primary" data-action="startassess">${ic('play', 16)} Take assessment</button></div>
       <div class="seclbl mono">ASSESSMENT HISTORY</div>
       <div class="panel">${history}</div>
@@ -1172,61 +1175,106 @@
 
   /* ---- assessment runner (overlay) --------------------------------------- */
   function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
-  function startAssess() {
+  const CONF_LABELS = ['Not sure', 'Fairly sure', 'Very sure'];
+  function buildRunQs() {
     const prof = PROFILES[S.assess.cert.profile];
     let pool = allQuestions().filter((q) => prof.brands.indexOf(q.product) !== -1 && qStatus(q) === 'active');
     pool = shuffle(pool.slice());
-    const qs = pool.slice(0, Math.min(6, pool.length));
-    S.assess.run = { qs, idx: 0, answers: new Array(qs.length).fill(null), done: false };
-    openAssess();
+    return pool.slice(0, Math.min(S.assess.perAttempt || 6, pool.length));
   }
+  function startAssess() {
+    const qs = buildRunQs();
+    S.assess.run = { qids: qs.map((q) => q.id), idx: 0, answers: new Array(qs.length).fill(null), confidence: new Array(qs.length).fill(null), official: true, stage: 'intro', done: false };
+    saveRun(); openAssess();
+  }
+  // Rehydrate qs objects for the live run (qids are what we persist).
+  function runQs() { const r = S.assess.run; if (!r) return []; if (r.qs) return r.qs; return (r.qids || []).map((id) => allQuestions().find((q) => q.id === id)).filter(Boolean); }
+  function saveRun() { if (S.assess.run) save('merz_assessrun', { qids: S.assess.run.qids || (S.assess.run.qs || []).map((q) => q.id), idx: S.assess.run.idx, answers: S.assess.run.answers, confidence: S.assess.run.confidence, official: S.assess.run.official, stage: S.assess.run.stage, done: S.assess.run.done }); }
+  function clearRun() { S.assess.run = null; try { localStorage.removeItem('merz_assessrun'); } catch (e) {} }
+  function resumeAssess() { const saved = load('merz_assessrun', null); if (!saved) return; S.assess.run = saved; openAssess(); }
   function openAssess() { closeAssess(); const ov = document.createElement('div'); ov.className = 'assess-overlay'; ov.id = 'assessov'; ov.innerHTML = assessHtml(); document.body.appendChild(ov); }
   function closeAssess() { const o = document.getElementById('assessov'); if (o) o.remove(); }
-  function reAssess() { const o = document.getElementById('assessov'); if (o) o.innerHTML = assessHtml(); }
+  function reAssess() { saveRun(); const o = document.getElementById('assessov'); if (o) o.innerHTML = assessHtml(); }
   function scoreRun() {
-    const run = S.assess.run, perBrand = {}; let correct = 0;
-    run.qs.forEach((q, i) => { const ok = run.answers[i] === q.correct; if (ok) correct++; (perBrand[q.product] = perBrand[q.product] || { c: 0, t: 0 }).t++; if (ok) perBrand[q.product].c++; });
-    return { correct, total: run.qs.length, pct: Math.round(correct / run.qs.length * 100), perBrand };
+    const run = S.assess.run, qs = runQs(), perBrand = {}; let correct = 0, confMiss = 0;
+    qs.forEach((q, i) => { const ok = run.answers[i] === q.correct; if (ok) correct++; else if (run.confidence[i] === 2) confMiss++; (perBrand[q.product] = perBrand[q.product] || { c: 0, t: 0 }).t++; if (ok) perBrand[q.product].c++; });
+    return { correct, total: qs.length, pct: Math.round(correct / qs.length * 100), perBrand, confMiss };
   }
   const plusMonths = (m) => (m >= 6 ? '10 Jan 2027' : '10 Oct 2026');
   function applyResult(res) {
-    const c = S.assess.cert, pass = res.pct >= S.assess.threshold;
-    Object.keys(res.perBrand).forEach((b) => {
-      const pb = res.perBrand[b], bp = Math.round(pb.c / pb.t * 100);
-      c.brands[b] = Object.assign(c.brands[b] || {}, bp >= S.assess.threshold
-        ? { status: 'certified', score: bp, certifiedAt: TODAY, expiresAt: plusMonths(c.cadence) }
-        : { status: 'failed', score: bp });
-    });
-    c.history.unshift({ date: TODAY, type: 'Recertification', score: res.pct, result: pass ? 'Passed' : 'Failed' });
-    if (pass) c.nextDue = plusMonths(c.cadence);
+    const run = S.assess.run, pass = res.pct >= S.assess.threshold;
+    // Log the attempt (official vs practice split preserved for the monitor).
+    S.assess.attempts = S.assess.attempts || [];
+    S.assess.attempts.unshift({ date: TODAY, official: !!run.official, score: res.pct, passed: pass });
+    // Practice attempts NEVER change certification or the next-due date.
+    if (run.official) {
+      const c = S.assess.cert;
+      Object.keys(res.perBrand).forEach((b) => {
+        const pb = res.perBrand[b], bp = Math.round(pb.c / pb.t * 100);
+        c.brands[b] = Object.assign(c.brands[b] || {}, bp >= S.assess.threshold
+          ? { status: 'certified', score: bp, certifiedAt: TODAY, expiresAt: plusMonths(c.cadence) }
+          : { status: 'failed', score: bp });
+      });
+      c.history.unshift({ date: TODAY, type: 'Recertification', score: res.pct, result: pass ? 'Passed' : 'Failed' });
+      if (pass) c.nextDue = plusMonths(c.cadence); // auto-recertify + recompute due
+    }
     saveAssess();
   }
   function assessHtml() {
     const run = S.assess.run;
     if (!run) return '';
+    const qs = runQs();
+    const prof = PROFILES[S.assess.cert.profile];
+
+    // ---- Intro / pre-flight (ATAKE-1): shape of the attempt + official/practice
+    if (run.stage === 'intro') {
+      const brandNames = prof.brands.map((b) => PRODUCTS[b].name).join(', ');
+      return `<div class="assess-card">
+        <div class="assess-hd"><div class="at">${ic('graduationCap', 18)} Take assessment</div><button class="x" data-action="assessclose">${ic('x', 20)}</button></div>
+        <div class="assess-body">
+          <div class="preflight">
+            <div class="pf-row"><span class="pf-l">Questions</span><b>${qs.length}</b></div>
+            <div class="pf-row"><span class="pf-l">Products covered</span><b>${esc(brandNames)}</b></div>
+            <div class="pf-row"><span class="pf-l">Pass threshold</span><b>${S.assess.threshold}%</b></div>
+          </div>
+          <div class="seclbl mono" style="margin-top:14px">ATTEMPT TYPE</div>
+          <div class="attempt-toggle">
+            <button class="att ${run.official ? 'on' : ''}" data-action="assessofficial" data-v="1"><b>${ic('shieldCheck', 15)} Official</b><span>Counts toward certification</span></button>
+            <button class="att ${!run.official ? 'on' : ''}" data-action="assessofficial" data-v="0"><b>${ic('play', 15)} Practice</b><span>Score + review only — no cert change</span></button>
+          </div>
+          <div class="mactions" style="margin-top:16px"><button class="mbtn" data-action="assessclose">Cancel</button><button class="mbtn primary" data-action="assessbegin">Start assessment ${ic('chevronRight', 15)}</button></div>
+        </div></div>`;
+    }
+
+    // ---- Results (ATAKE-5,6,7)
     if (run.done) {
       const res = scoreRun(), pass = res.pct >= S.assess.threshold;
       const brands = Object.keys(res.perBrand).map((b) => { const pb = res.perBrand[b], bp = Math.round(pb.c / pb.t * 100); return `<div class="abrk"><span class="l">${brandLetter(b)}</span><span>${PRODUCTS[b].name}</span><div class="bar-wrap"><div class="bar-fill" style="width:${bp}%"></div></div><b>${bp}%</b></div>`; }).join('');
-      const missed = run.qs.map((q, i) => run.answers[i] === q.correct ? '' :
-        `<div class="missed"><div class="mq">${ic('xCircle', 14)} ${esc(q.stem)}</div><div class="ma">Correct: <b>${esc(q.options[q.correct])}</b></div><div class="msrc">${ic('fileText', 12)} ${esc(q.source_ref)}</div></div>`).join('');
+      const missed = qs.map((q, i) => run.answers[i] === q.correct ? '' :
+        `<div class="missed"><div class="mq">${ic('xCircle', 14)} ${esc(q.stem)}${run.confidence[i] === 2 ? '<span class="confmiss">answered “Very sure”</span>' : ''}</div><div class="ma">Your answer: ${run.answers[i] != null ? esc(q.options[run.answers[i]]) : '—'} · Correct: <b>${esc(q.options[q.correct])}</b></div><div class="mexp">${esc(q.explanation)}</div><div class="msrc">${ic('fileText', 12)} ${esc(q.source_ref)}</div></div>`).join('');
       return `<div class="assess-card">
-        <div class="assess-hd"><div class="at">Assessment result</div><button class="x" data-action="assessclose">${ic('x', 20)}</button></div>
+        <div class="assess-hd"><div class="at">Assessment result <span class="attpill ${run.official ? 'off' : 'prac'}">${run.official ? 'OFFICIAL' : 'PRACTICE'}</span></div><button class="x" data-action="assessclose">${ic('x', 20)}</button></div>
         <div class="assess-body">
-          <div class="result-hero ${pass ? 'pass' : 'fail'}">${ic(pass ? 'trophy' : 'refreshCw', 30)}<div><div class="rh-top">${res.pct}% · ${res.correct}/${res.total} correct</div><div class="rh-sub">${pass ? 'Passed — above the ' + S.assess.threshold + '% threshold' : 'Below the ' + S.assess.threshold + '% threshold — you can re-take'}</div></div></div>
+          <div class="result-hero ${pass ? 'pass' : 'fail'}">${ic(pass ? 'trophy' : 'refreshCw', 30)}<div><div class="rh-top">${res.pct}% · ${res.correct}/${res.total} correct</div><div class="rh-sub">${pass ? 'Passed — above the ' + S.assess.threshold + '% threshold' : 'Below the ' + S.assess.threshold + '% threshold — you can re-take'}${run.official ? '' : ' · practice: certification unchanged'}</div></div></div>
+          ${res.confMiss ? `<div class="mbanner blue" style="margin-top:10px">${ic('info', 16)}<span>${res.confMiss} answer${res.confMiss > 1 ? 's were' : ' was'} wrong but marked “Very sure” — a confidence gap worth revisiting, not just a knowledge gap.</span></div>` : ''}
           <div class="seclbl mono" style="margin-top:6px">SCORE BY BRAND</div>${brands}
           ${missed ? `<div class="seclbl mono" style="margin-top:14px">REVIEW YOUR WEAK AREAS</div>${missed}` : `<div class="mbanner green" style="margin-top:14px">${ic('checkCircle', 16)}<span>Perfect run — no weak areas to review.</span></div>`}
           <div class="mactions" style="margin-top:16px">${pass ? '' : `<button class="mbtn" data-action="startassess">${ic('refreshCw', 15)} Retake</button>`}<button class="mbtn primary" data-action="assessclose">Done</button></div>
         </div></div>`;
     }
-    const q = run.qs[run.idx], p = PRODUCTS[q.product], answered = run.answers[run.idx] != null, last = run.idx === run.qs.length - 1;
+
+    // ---- Question screen (one at a time, single-choice + confidence)
+    const q = qs[run.idx], p = PRODUCTS[q.product], answered = run.answers[run.idx] != null, last = run.idx === qs.length - 1;
     const opts = q.options.map((o, i) => `<button class="aopt ${run.answers[run.idx] === i ? 'sel' : ''}" data-action="apick" data-i="${i}"><span class="ab">${String.fromCharCode(65 + i)}</span><span>${esc(o)}</span></button>`).join('');
+    const conf = CONF_LABELS.map((l, i) => `<button class="confopt ${run.confidence[run.idx] === i ? 'on' : ''}" data-action="aconf" data-i="${i}">${esc(l)}</button>`).join('');
     return `<div class="assess-card">
-      <div class="assess-hd"><div class="at">${ic('graduationCap', 18)} Assessment · ${PROFILES[S.assess.cert.profile].label}</div><button class="x" data-action="assessclose">${ic('x', 20)}</button></div>
-      <div class="assess-prog"><div class="assess-prog-txt">Question ${run.idx + 1} of ${run.qs.length}</div><div class="prog-wrap"><div class="prog-fill" style="width:${(run.idx + 1) / run.qs.length * 100}%"></div></div></div>
+      <div class="assess-hd"><div class="at">${ic('graduationCap', 18)} ${run.official ? 'Official' : 'Practice'} · ${prof.label}</div><button class="x" data-action="assessclose">${ic('x', 20)}</button></div>
+      <div class="assess-prog"><div class="assess-prog-txt">Question ${run.idx + 1} of ${qs.length}</div><div class="prog-wrap"><div class="prog-fill" style="width:${(run.idx + 1) / qs.length * 100}%"></div></div></div>
       <div class="assess-body">
-        <div class="qmeta"><span class="qtag" style="background:${p.bg};color:${p.color}">${p.letter} ${p.name}</span><span class="qdiff">${esc(q.difficulty)}</span><span class="qtopic">${esc(q.topic)}</span></div>
+        <div class="qmeta"><span class="qtag" style="background:${p.bg};color:${p.color}">${p.letter} ${p.name}</span><span class="qdiff">${esc(q.difficulty)}</span><span class="qtopic">${esc(q.topic)}</span><span class="qid mono">${esc(q.id)}</span></div>
         <div class="qstem">${esc(q.stem)}</div>
         <div class="aopts">${opts}</div>
+        <div class="confbox"><span class="confl mono">HOW SURE ARE YOU?</span><div class="confopts">${conf}</div></div>
         <div class="assess-foot">
           ${run.idx > 0 ? `<button class="mbtn" data-action="assessprev">${ic('chevronLeft', 15)} Back</button>` : '<span></span>'}
           <button class="mbtn primary" data-action="${last ? 'assesssubmit' : 'assessnext'}" ${answered ? '' : 'disabled'}>${last ? 'Submit' : 'Next'} ${ic('chevronRight', 15)}</button>
@@ -1256,6 +1304,7 @@
         <div class="dq-acts"><button class="btn-sm" data-action="qreject" data-id="${q.id}">${ic('x', 13)} Reject</button><button class="btn-dark" data-action="qapprove" data-id="${q.id}">${ic('check', 13)} Approve &amp; activate</button></div></div>`).join('')}</div>` : '';
 
     const poolPanel = `<div class="panel"><h3>Question pools <span class="flt">preset / AI blend per product</span></h3>
+      <div class="poolrow perattempt"><span>Questions per attempt</span><span class="stepper"><button class="btn-sm sq" data-action="perattempt" data-d="-1">−</button><b>${S.assess.perAttempt}</b><button class="btn-sm sq" data-action="perattempt" data-d="1">+</button></span></div>
       ${Object.keys(S.assess.pools).map((pk) => { const pc = S.assess.pools[pk], p = PRODUCTS[pk]; return `<div class="poolrow"><span class="qtag" style="background:${p.bg};color:${p.color}">${p.letter} ${p.name}</span>
         <span class="poolcount">${pc.preset} preset · ${pc.ai} AI</span>
         <div class="mixctl"><span class="mono" style="color:var(--gray)">PRESET ${pc.mix}%</span><input type="range" min="0" max="100" value="${pc.mix}" data-action="poolmix" data-p="${pk}"><span class="mono" style="color:var(--gray)">AI ${100 - pc.mix}%</span></div></div>`; }).join('')}
@@ -1605,10 +1654,14 @@
     // Part B — assessment (rep)
     startassess: () => startAssess(),
     apick: (d) => { S.assess.run.answers[S.assess.run.idx] = +d.i; reAssess(); },
-    assessnext: () => { if (S.assess.run.idx < S.assess.run.qs.length - 1) { S.assess.run.idx++; reAssess(); } },
+    aconf: (d) => { S.assess.run.confidence[S.assess.run.idx] = +d.i; reAssess(); },
+    assessofficial: (d) => { S.assess.run.official = d.v === '1'; reAssess(); },
+    assessbegin: () => { S.assess.run.stage = 'run'; reAssess(); },
+    resumeassess: () => resumeAssess(),
+    assessnext: () => { const n = runQs().length; if (S.assess.run.idx < n - 1) { S.assess.run.idx++; reAssess(); } },
     assessprev: () => { if (S.assess.run.idx > 0) { S.assess.run.idx--; reAssess(); } },
-    assesssubmit: () => { S.assess.run.done = true; applyResult(scoreRun()); reAssess(); },
-    assessclose: () => { closeAssess(); S.assess.run = null; render(); },
+    assesssubmit: () => { S.assess.run.done = true; S.assess.run.stage = 'done'; applyResult(scoreRun()); saveRun(); reAssess(); },
+    assessclose: () => { closeAssess(); clearRun(); render(); },
     // Part B — assessment (admin)
     admintab: (d) => { S.adminTab = d.t; render(); },
     gotodrafts: () => { S.adminTab = 'questions'; go('assess'); },
@@ -1622,6 +1675,7 @@
     saveq: () => saveQuestion(),
     poolmix: (d, el) => { S.assess.pools[d.p].mix = +el.value; saveAssess(); const r = el.closest('.mixctl'); if (r) { r.querySelector('.mono').innerHTML = 'PRESET ' + el.value + '%'; r.querySelectorAll('.mono')[1].innerHTML = 'AI ' + (100 - el.value) + '%'; } },
     thresh: (d) => { S.assess.threshold = Math.max(50, Math.min(100, S.assess.threshold + (+d.d))); saveAssess(); render(); },
+    perattempt: (d) => { S.assess.perAttempt = Math.max(3, Math.min(50, S.assess.perAttempt + (+d.d))); saveAssess(); render(); },
     adhoc: () => { closeModal(); toast('Ad-hoc assessment triggered (demo)', 'good'); },
     repdrill: (d) => repDrill(+d.i),
     // Products (catalog)

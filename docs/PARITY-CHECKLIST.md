@@ -5,7 +5,7 @@ Legend: `[ ]` missing · `[~]` partial · `[x]` done. "UI" = present as UI only;
 "svc" = enforced/backed by the service layer. Build mode: **client-only
 simulation** (service layer plays the server).
 
-_Last updated: Area 6 — Brand detail, Chat history, Home stats._
+_Last updated: Area 7 — Assessment engine (official/practice, confidence, autosave)._
 
 **Area 1 landed:** `js/services.js` (the single enforcement point + Part E store),
 `js/components.js` (reusable filtered-list, Part D4), retrieval now scoped by the
@@ -67,23 +67,23 @@ content gap or a fabricated answer. Tests in `tests/` (20 assertions, run with
 - [x] LIB-3 Doc viewer / bookmark / ask
 
 ## ATAKE / CERT
-- [~] ATAKE-1 Intro/pre-flight (no official/practice choice)
+- [x] ATAKE-1 Intro/pre-flight (count, products, official/practice choice)
 - [x] ATAKE-2 One-per-screen single-choice
-- [ ] ATAKE-3 Per-question confidence
-- [ ] ATAKE-4 Autosave/resume
+- [x] ATAKE-3 Per-question confidence capture (3-point)
+- [x] ATAKE-4 Autosave + resume (persisted run)
 - [x] ATAKE-5 Results score vs threshold
 - [x] ATAKE-6 Per-question review + rationale
 - [x] ATAKE-7 Weak-area callout
-- [~] ATAKE-8 Auto-recert (no official/practice split)
+- [x] ATAKE-8 Official-only recert + no-lockout retake (practice never changes cert)
 - [x] CERT-1 My certification
 
 ## QMAN / AMON / GAP / RDD
 - [x] QMAN-1 Question CRUD + taxonomy
 - [x] QMAN-2 Draft→approved gate
 - [x] QMAN-3 Retire + source-link
-- [~] QMAN-4 Pool config (per-attempt count partial)
+- [x] QMAN-4 Pool config: preset/AI mix + questions-per-attempt
 - [x] AMON-1 Monitor KPIs + roster + ad-hoc
-- [ ] AMON-2 Official vs practice split
+- [x] AMON-2 Official vs practice split (attempts tagged + labeled)
 - [x] GAP-1 Gap analytics
 - [x] RDD-1 Rep drill-down
 
