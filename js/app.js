@@ -51,6 +51,7 @@
     activityDays: 7,
     mgrCols: load('merz_mgrcols', null) || { q30: true, completion: true, last: true, cert: true, next: true },
     qFilter: { product: 'all', origin: 'all', status: 'all' },
+    prodFilter: { q: '', type: 'all', status: 'all' },
     assess: {
       threshold: storedAssess.threshold != null ? storedAssess.threshold : 80,
       cert: storedAssess.cert || clone(REP_CERT),
@@ -228,7 +229,8 @@
   }
   function newQuestion() { S.chat = null; S.view = 'home'; S.navOpen = false; render(); setTimeout(() => { const i = $('#askInput'); if (i) i.focus(); }, 30); }
 
-  const roleOfView = (v) => (v === 'mgr' ? 'mgr' : (v === 'adm' || v === 'assess') ? 'adm' : 'rep');
+  const ADMIN_VIEWS = ['adm', 'assess', 'products', 'kb'];
+  const roleOfView = (v) => (v === 'mgr' ? 'mgr' : ADMIN_VIEWS.indexOf(v) !== -1 ? 'adm' : 'rep');
 
   /* =====================================================================
      SHELL: sidebar + appbar
@@ -238,7 +240,7 @@
     const badge = PERSONA[role];
     let showProds = true, gate = '';
     if (role === 'mgr') { showProds = false; gate = `<div class="gate"><a data-action="nav" data-view="mgr" class="on"><span class="ic">${ic('barChart', 17)}</span> Team Pulse</a></div>`; }
-    else if (role === 'adm') { showProds = false; gate = `<div class="gate"><a data-action="nav" data-view="mgr"><span class="ic">${ic('barChart', 17)}</span> Team Pulse</a><a data-action="nav" data-view="assess" class="${active === 'assess' ? 'on' : ''}"><span class="ic">${ic('graduationCap', 17)}</span> Assessments</a><a data-action="nav" data-view="adm" class="${active === 'adm' ? 'on' : ''}"><span class="ic">${ic('settings', 17)}</span> Admin</a></div>`; }
+    else if (role === 'adm') { showProds = false; gate = `<div class="gate"><a data-action="nav" data-view="mgr"><span class="ic">${ic('barChart', 17)}</span> Team Pulse</a><a data-action="nav" data-view="assess" class="${active === 'assess' ? 'on' : ''}"><span class="ic">${ic('graduationCap', 17)}</span> Assessments</a><a data-action="nav" data-view="products" class="${active === 'products' ? 'on' : ''}"><span class="ic">${ic('clipboardList', 17)}</span> Products</a><a data-action="nav" data-view="adm" class="${active === 'adm' ? 'on' : ''}"><span class="ic">${ic('settings', 17)}</span> Admin</a></div>`; }
 
     const navHtml = repNav.map((n) =>
       `<a data-action="nav" data-view="${n[0]}" class="${active === n[0] ? 'on' : ''}"><span class="ic">${ic(n[1], 17)}</span> ${n[2]}</a>`
@@ -597,6 +599,89 @@
       <div class="mbody"><div class="pm-opts">${MGR_COLS.map((c) => `<button class="pm-opt ${S.mgrCols[c.k] ? 'on' : ''}" data-action="togcol" data-k="${c.k}">${ic(S.mgrCols[c.k] ? 'eye' : 'eyeOff', 15)} ${c.th}${S.mgrCols[c.k] ? `<span class="chk">${ic('check', 15)}</span>` : ''}</button>`).join('')}</div>
         <div class="mbanner blue" style="margin-top:12px">${ic('info', 16)}<span>Rep and Profile are always shown. Additional data points Ahmed sends can be added here without a code change.</span></div>
         <div class="mactions"><button class="mbtn primary" data-action="close">Done</button></div></div>`);
+  }
+
+  /* =====================================================================
+     PRODUCTS — catalog (PROD-1..4)
+     ===================================================================== */
+  function prodRow(p) {
+    const typeBadge = p.is_competitor ? '<span class="tbadge comp">competitor</span>' : '<span class="tbadge own">own</span>';
+    const statusBadge = p.is_active ? '<span class="sbadge on">active</span>' : '<span class="sbadge off">archived</span>';
+    const act = p.is_active
+      ? `<button class="btn-sm" data-action="editprod" data-slug="${esc(p.slug)}">${ic('pencil', 12)} Edit</button><button class="btn-sm warn" data-action="deactprod" data-slug="${esc(p.slug)}">${ic('ban', 12)} Deactivate</button>`
+      : `<button class="btn-sm" data-action="editprod" data-slug="${esc(p.slug)}">${ic('pencil', 12)} Edit</button><button class="btn-sm" data-action="reactprod" data-slug="${esc(p.slug)}">${ic('refreshCw', 12)} Reactivate</button>`;
+    return `<div class="prow${p.is_active ? '' : ' archived'}">
+      <span class="pn">${esc(p.display_name)}${p.aliases && p.aliases.length ? `<span class="palias">aka ${esc(p.aliases.join(', '))}</span>` : ''}</span>
+      <span class="ps code">${esc(p.slug)}</span>
+      <span class="pc">${esc(p.category || '—')}</span>
+      <span>${typeBadge}</span>
+      <span>${statusBadge}</span>
+      <span class="pa">${act}</span></div>`;
+  }
+
+  function viewProducts() {
+    const f = S.prodFilter;
+    const items = SVC.products();
+    const list = MerzUI.filteredListHtml({
+      items: items, query: f.q,
+      searchKeys: ['display_name', 'slug', (p) => (p.aliases || []).join(' ')],
+      searchAction: 'prodsearch', searchId: 'prodInput', icon: ic('search', 16),
+      searchPlaceholder: 'Search products, slugs, aliases…',
+      filters: [
+        { value: f.type, action: 'prodftype', label: f.type === 'all' ? 'All types' : (f.type === 'own' ? 'Own' : 'Competitor'),
+          match: (p, v) => v === 'all' ? true : (v === 'own' ? !p.is_competitor : p.is_competitor) },
+        { value: f.status, action: 'prodfstat', label: f.status === 'all' ? 'All status' : (f.status === 'active' ? 'Active' : 'Archived'),
+          match: (p, v) => v === 'all' ? true : (v === 'active' ? p.is_active : !p.is_active) }
+      ],
+      countLabel: (n, total) => n + ' of ' + total + ' products',
+      rowRenderer: prodRow,
+      emptyHtml: '<div class="fl-empty">No products match.</div>'
+    });
+    return `
+      <div class="hero"><div class="date mono">ADMIN · PRODUCTS</div><h1>Product catalog</h1>
+        <div class="sub">The catalog of products/medicines. Each drives the upload dropdown, the blob naming, and the product tag on every chunk. Deactivating hides a product from new uploads and access grants without deleting its history.</div></div>
+      <div class="prodtop"><button class="btn-dark" data-action="addprod">${ic('plus', 14)} Add product</button></div>
+      <div class="prodhead"><span>Product</span><span>Slug</span><span>Category</span><span>Type</span><span>Status</span><span></span></div>
+      ${list}
+      <div class="callout"><b>Slug is the immutable primary key</b> — baked into blob names and chunk metadata; renaming touches the display name only. Competitor products are first-class so objection-handling content can be indexed against them. Deactivate ≠ delete: history and existing chunks survive.</div>`;
+  }
+
+  function productModal(slug) {
+    const p = slug ? SVC.productBySlug(slug) : null;
+    const isEdit = !!p;
+    openModal(`<div class="mhd"><div><div class="mt">${ic(isEdit ? 'pencil' : 'plus', 20)} ${isEdit ? 'Edit product' : 'Add product'}</div><div class="msub">${isEdit ? esc(p.display_name) : 'Create a catalog entry'}</div></div><button class="x" data-action="close">${ic('x', 20)}</button></div>
+      <div class="mbody">
+        <div class="mrow">
+          <div class="fld"><label>Slug ${isEdit ? '<span class="lockpill">' + ic('lock', 11) + ' immutable</span>' : '<span class="req">*</span>'}</label>
+            ${isEdit ? `<input id="pmSlug" class="code" value="${esc(p.slug)}" readonly disabled>` : `<input id="pmSlug" class="code" placeholder="e.g. new-filler">`}
+            ${isEdit ? '' : '<div class="hint">Lowercase letters, numbers, hyphens. Immutable once created — it is baked into blob names + chunk metadata.</div>'}</div>
+          <div class="fld"><label>Display name <span class="req">*</span></label><input id="pmName" value="${isEdit ? esc(p.display_name) : ''}" placeholder="Display name"></div>
+        </div>
+        <div class="mrow">
+          <div class="fld"><label>Category</label><input id="pmCat" value="${isEdit ? esc(p.category) : ''}" placeholder="e.g. HA Filler"></div>
+          <div class="fld"><label>Sort order</label><input id="pmSort" type="number" value="${isEdit ? esc(p.sort_order) : items_len()}"></div>
+        </div>
+        <div class="fld"><label>Aliases (comma-separated)</label><input id="pmAliases" value="${isEdit ? esc((p.aliases || []).join(', ')) : ''}" placeholder="brandname, common misspelling"><div class="hint">Drives query-time entity matching, including misspellings.</div></div>
+        <div class="fld"><label>Description</label><textarea id="pmDesc" rows="2" placeholder="Short description">${isEdit ? esc(p.description) : ''}</textarea></div>
+        <div class="mrow">
+          <label class="chkline"><input type="checkbox" id="pmComp" ${isEdit && p.is_competitor ? 'checked' : ''}> Competitor product</label>
+          ${isEdit ? `<label class="chkline"><input type="checkbox" id="pmActive" ${p.is_active ? 'checked' : ''}> Active</label>` : ''}
+        </div>
+        <div class="merr" id="pmErr">Please complete the required fields.</div>
+        <div class="mactions"><button class="mbtn" data-action="close">Cancel</button><button class="mbtn primary" data-action="prodsave" ${isEdit ? `data-slug="${esc(slug)}"` : ''}>${isEdit ? 'Save changes' : 'Add product'}</button></div>
+      </div>`);
+  }
+  function items_len() { return SVC.products().length; }
+
+  function prodSave(slug) {
+    const v = (id) => (document.getElementById(id) || {}).value || '';
+    const chk = (id) => { const e = document.getElementById(id); return e ? e.checked : false; };
+    const data = { display_name: v('pmName'), category: v('pmCat'), sort_order: v('pmSort'), aliases: v('pmAliases'), description: v('pmDesc'), is_competitor: chk('pmComp') };
+    let res;
+    if (slug) { data.is_active = chk('pmActive'); res = SVC.updateProduct(slug, data); }
+    else { data.slug = v('pmSlug'); res = SVC.addProduct(data); }
+    if (!res.ok) { const e = document.getElementById('pmErr'); if (e) { e.textContent = res.error; e.classList.add('show'); } return; }
+    closeModal(); toast(slug ? 'Product updated' : 'Product added to the catalog', 'good'); render();
   }
 
   /* =====================================================================
@@ -1210,6 +1295,15 @@
     thresh: (d) => { S.assess.threshold = Math.max(50, Math.min(100, S.assess.threshold + (+d.d))); saveAssess(); render(); },
     adhoc: () => { closeModal(); toast('Ad-hoc assessment triggered (demo)', 'good'); },
     repdrill: (d) => repDrill(+d.i),
+    // Products (catalog)
+    addprod: () => productModal(null),
+    editprod: (d) => productModal(d.slug),
+    deactprod: (d) => { SVC.setProductActive(d.slug, false); toast('Product deactivated — hidden from new uploads and grants; history kept', 'warn'); render(); },
+    reactprod: (d) => { SVC.setProductActive(d.slug, true); toast('Product reactivated', 'good'); render(); },
+    prodsearch: () => { const i = $('#prodInput'); if (i) { S.prodFilter.q = i.value; render(); } },
+    prodftype: () => { const o = ['all', 'own', 'competitor']; S.prodFilter.type = o[(o.indexOf(S.prodFilter.type) + 1) % o.length]; render(); },
+    prodfstat: () => { const o = ['all', 'active', 'archived']; S.prodFilter.status = o[(o.indexOf(S.prodFilter.status) + 1) % o.length]; render(); },
+    prodsave: (d) => prodSave(d.slug),
     close: () => closeModal()
   };
 
@@ -1227,12 +1321,13 @@
     if (ev.key !== 'Enter') return;
     if (ev.target.id === 'askInput') { ev.preventDefault(); askQuestion(ev.target.value); }
     if (ev.target.id === 'libInput') { ev.preventDefault(); S.lib.q = ev.target.value; render(); }
+    if (ev.target.id === 'prodInput') { ev.preventDefault(); S.prodFilter.q = ev.target.value; render(); }
   });
 
   /* =====================================================================
      RENDER
      ===================================================================== */
-  const VIEWS = { home: viewHome, chat: viewChat, lib: viewLibrary, cert: viewCert, mgr: viewManager, adm: viewAdmin, assess: viewAssess };
+  const VIEWS = { home: viewHome, chat: viewChat, lib: viewLibrary, cert: viewCert, mgr: viewManager, adm: viewAdmin, assess: viewAssess, products: viewProducts };
   function render() {
     if (!S.authed) { app().innerHTML = viewLogin(); return; }
     if (S.view === 'onboard') { app().innerHTML = viewOnboard(); return; }
@@ -1247,6 +1342,7 @@
     const content = (VIEWS[S.view] || viewHome)();
     app().innerHTML = `<div class="shell${S.navOpen ? ' nav-open' : ''}">${sidebar(role, active, activeProduct)}<div class="nav-backdrop" data-action="closenav"></div><div class="workarea">${appbar(role)}<main class="main">${content}</main></div></div>`;
     if (S.view === 'lib') { const i = $('#libInput'); if (i && S.lib.q) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+    if (S.view === 'products') { const i = $('#prodInput'); if (i && S.prodFilter.q) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
   }
 
   SVC.init();               // seed the service store (Part E) + session

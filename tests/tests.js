@@ -18,8 +18,9 @@
     t.eq(karim.role, 'member', 'signed-in rep is a member');
     t.eq(fouad.role, 'admin', 'admin persona is an admin');
 
-    const allSlugs = S.activeProducts().map((p) => p.slug);
-    t.ok(allSlugs.length >= 4 && allSlugs.every((s) => S.canAccessProduct(s)), 'rep can access all granted products by default');
+    const allSlugs = S.ownProductSlugs();
+    t.ok(allSlugs.length >= 4 && allSlugs.every((s) => S.canAccessProduct(s)), 'rep can access all granted (own) products by default');
+    t.ok(!S.canAccessProduct('competitor-tox-a'), 'rep is NOT granted competitor products by default');
 
     // Revoking a brand grant blocks retrieval (not just the menu).
     S.setBrandGrants(karim.id, allSlugs.filter((s) => s !== 'radiesse'));
@@ -48,6 +49,29 @@
     // scopeProducts intersects a list with the user's grants.
     S.setBrandGrants(karim.id, ['xeomin']);
     t.eq(S.scopeProducts(['xeomin', 'radiesse', 'belotero']).join(','), 'xeomin', 'scopeProducts filters to granted only');
+
+    /* ---- Area 2: product catalog CRUD ---- */
+    S.init({ fresh: true });
+    const before = S.products().length;
+    // add
+    const add = S.addProduct({ slug: 'new-filler', display_name: 'New Filler', category: 'HA Filler', aliases: 'nf, newfiller' });
+    t.ok(add.ok && S.products().length === before + 1, 'addProduct creates a product');
+    t.eq(S.productBySlug('new-filler').aliases.join(','), 'nf,newfiller', 'aliases normalized to lowercase list');
+    // unique slug
+    t.ok(!S.addProduct({ slug: 'new-filler', display_name: 'Dup' }).ok, 'duplicate slug rejected');
+    // invalid slug
+    t.ok(!S.addProduct({ slug: 'Bad Slug', display_name: 'x' }).ok, 'invalid slug rejected');
+    // immutable slug on update
+    S.updateProduct('new-filler', { slug: 'hacked', display_name: 'Renamed' });
+    t.ok(!!S.productBySlug('new-filler') && !S.productBySlug('hacked'), 'slug is immutable on update');
+    t.eq(S.productBySlug('new-filler').display_name, 'Renamed', 'display_name updates on rename');
+    // deactivate ≠ delete
+    S.setProductActive('new-filler', false);
+    t.ok(!!S.productBySlug('new-filler'), 'deactivate keeps the product (not deleted)');
+    t.ok(S.activeProducts().every((p) => p.slug !== 'new-filler'), 'deactivated product drops out of active list');
+    t.ok(!S.authorizeRetrieval('new-filler').allowed, 'deactivated product is denied at retrieval');
+    // competitor flag
+    t.ok(S.productBySlug('competitor-tox-a').is_competitor, 'competitor products are first-class + flagged');
 
     /* ---- Area 1: reusable filtered-list (Part D4) ---- */
     const items = [{ name: 'Alpha', cat: 'x' }, { name: 'Beta', cat: 'y' }, { name: 'Gamma', cat: 'x' }];

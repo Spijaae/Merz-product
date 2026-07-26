@@ -71,7 +71,21 @@
         description: p.cat2 || '', is_competitor: false, is_active: true
       });
     });
+    // Competitor products are first-class catalog entries so objection-handling
+    // content can be indexed against them. Neutral placeholder names only — no
+    // real third-party brands (HARD CONSTRAINT #1).
+    [
+      { slug: 'competitor-tox-a', display_name: 'Competitor Neurotoxin A', category: 'Botulinum Toxin' },
+      { slug: 'competitor-tox-b', display_name: 'Competitor Neurotoxin B', category: 'Botulinum Toxin' }
+    ].forEach((c, i) => store.products.push({
+      id: c.slug, slug: c.slug, display_name: c.display_name, category: c.category,
+      sort_order: 100 + i, aliases: [], description: 'Competitor product (objection handling).',
+      is_competitor: true, is_active: true
+    }));
   }
+
+  // Products the org owns (non-competitor). Reps are granted from these.
+  function ownProductSlugs() { return store.products.filter((p) => !p.is_competitor).map((p) => p.slug); }
 
   function seedUsers() {
     // Personas first (they carry role + persona).
@@ -88,20 +102,20 @@
       // brand grants
       (au.products || []).forEach((slug) => grantBrand(u.id, slug, true));
     });
-    // Karim's grants default to all products (matches the demo's signed-in rep).
+    // Karim's grants default to all OWN products (matches the signed-in rep).
     const karim = userByName('Karim A.');
     if (karim && !store.brandGrants.some((g) => g.user_id === karim.id)) {
-      store.products.forEach((p) => grantBrand(karim.id, p.slug, true));
+      ownProductSlugs().forEach((slug) => grantBrand(karim.id, slug, true));
     }
-    // Fouad (admin) can access every product + holds MA permission sets.
+    // Fouad (admin) holds MA permission sets + is granted all own products.
     const fouad = userByName('Fouad J.');
     if (fouad) {
-      store.products.forEach((p) => grantBrand(fouad.id, p.slug, true));
+      ownProductSlugs().forEach((slug) => grantBrand(fouad.id, slug, true));
       ['content', 'pv', 'assessment'].forEach((s) => setPermission(fouad.id, s, true));
     }
-    // Bahaa (manager) sees all products (team view).
+    // Bahaa (manager) sees all own products (team view).
     const bahaa = userByName('Bahaa K.');
-    if (bahaa) store.products.forEach((p) => grantBrand(bahaa.id, p.slug, true));
+    if (bahaa) ownProductSlugs().forEach((slug) => grantBrand(bahaa.id, slug, true));
     // Seed permission sets from ADMIN_ROLES where names match.
     (D.ADMIN_ROLES || []).forEach((r) => {
       const u = userByName(r.name);
@@ -193,6 +207,61 @@
     return (slugs || []).filter((s) => granted.has(s));
   }
 
+  /* ================================================================ catalog
+     Product CRUD. Immutable slug (baked into blob names + chunk metadata);
+     renames touch display_name only. Deactivate ≠ delete. */
+  const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
+  function slugAvailable(slug) { return !store.products.some((p) => p.slug === slug); }
+
+  function addProduct(data) {
+    const slug = String(data.slug || '').trim().toLowerCase();
+    if (!SLUG_RE.test(slug)) return { ok: false, error: 'Slug must be lowercase letters, numbers and hyphens.' };
+    if (!slugAvailable(slug)) return { ok: false, error: 'That slug is already in use.' };
+    if (!String(data.display_name || '').trim()) return { ok: false, error: 'Display name is required.' };
+    const product = {
+      id: slug, slug: slug, display_name: String(data.display_name).trim(),
+      category: String(data.category || '').trim(),
+      sort_order: Number.isFinite(+data.sort_order) ? +data.sort_order : store.products.length,
+      aliases: normalizeAliases(data.aliases),
+      description: String(data.description || ''),
+      is_competitor: !!data.is_competitor, is_active: true
+    };
+    store.products.push(product);
+    persist();
+    return { ok: true, product: product };
+  }
+
+  function updateProduct(slug, patch) {
+    const p = store.products.find((x) => x.slug === slug);
+    if (!p) return { ok: false, error: 'Unknown product.' };
+    // slug + id are immutable — never changed here.
+    if ('display_name' in patch && String(patch.display_name).trim()) p.display_name = String(patch.display_name).trim();
+    if ('category' in patch) p.category = String(patch.category || '').trim();
+    if ('sort_order' in patch && Number.isFinite(+patch.sort_order)) p.sort_order = +patch.sort_order;
+    if ('aliases' in patch) p.aliases = normalizeAliases(patch.aliases);
+    if ('description' in patch) p.description = String(patch.description || '');
+    if ('is_competitor' in patch) p.is_competitor = !!patch.is_competitor;
+    if ('is_active' in patch) p.is_active = !!patch.is_active;
+    persist();
+    return { ok: true, product: p };
+  }
+
+  function setProductActive(slug, active) { return updateProduct(slug, { is_active: !!active }); }
+
+  function normalizeAliases(a) {
+    if (Array.isArray(a)) return a.map((s) => String(s).trim().toLowerCase()).filter(Boolean);
+    return String(a || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  }
+
+  /* Merge persisted product edits/additions over the freshly seeded catalog. */
+  function mergeProducts(persisted) {
+    if (!Array.isArray(persisted)) return;
+    persisted.forEach((pp) => {
+      const i = store.products.findIndex((p) => p.slug === pp.slug);
+      if (i === -1) store.products.push(pp); else store.products[i] = pp;
+    });
+  }
+
   /* ---------------------------------------------------------------- session */
   function setSession(nameOrId) {
     const u = userByName(nameOrId) || userById(nameOrId);
@@ -205,12 +274,13 @@
      We persist only the mutable overlay (session + grants + permission sets),
      not the whole seeded catalog, so seed changes flow through on reload. */
   function persist() {
-    lsSet(LS_KEY, { session: session, brandGrants: store.brandGrants, permissionSets: store.permissionSets });
+    lsSet(LS_KEY, { session: session, products: store.products, brandGrants: store.brandGrants, permissionSets: store.permissionSets });
   }
   function restore() {
     const saved = lsGet(LS_KEY);
     if (!saved) return;
     if (saved.session) session = saved.session;
+    mergeProducts(saved.products);
     if (Array.isArray(saved.brandGrants)) store.brandGrants = saved.brandGrants;
     if (Array.isArray(saved.permissionSets)) store.permissionSets = saved.permissionSets;
   }
@@ -242,9 +312,14 @@
     userByName: userByName,
     userById: userById,
     // catalog
-    products: () => store.products.slice(),
+    products: () => store.products.slice().sort((a, b) => a.sort_order - b.sort_order),
     activeProducts: () => store.products.filter((p) => p.is_active),
+    ownProductSlugs: ownProductSlugs,
     productBySlug: (slug) => store.products.find((p) => p.slug === slug) || null,
+    slugAvailable: slugAvailable,
+    addProduct: addProduct,
+    updateProduct: updateProduct,
+    setProductActive: setProductActive,
     documents: () => store.documents.slice(),
     users: () => store.users.slice(),
     // access control

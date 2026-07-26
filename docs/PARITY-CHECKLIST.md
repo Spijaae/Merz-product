@@ -5,7 +5,7 @@ Legend: `[ ]` missing · `[~]` partial · `[x]` done. "UI" = present as UI only;
 "svc" = enforced/backed by the service layer. Build mode: **client-only
 simulation** (service layer plays the server).
 
-_Last updated: Area 1 — service layer + data model + access-control enforcement._
+_Last updated: Area 2 — product catalog (PROD-1..4)._
 
 **Area 1 landed:** `js/services.js` (the single enforcement point + Part E store),
 `js/components.js` (reusable filtered-list, Part D4), retrieval now scoped by the
@@ -101,11 +101,11 @@ content gap or a fabricated answer. Tests in `tests/` (20 assertions, run with
 - [~] ROLE-1 Permission sets — enforcement done in service (svc); editor UI pending (Area 11)
 - [~] ROLE-2 Country dimension (no filters)
 
-## PROD
-- [ ] PROD-1 Catalog list
-- [ ] PROD-2 Add/Edit immutable slug + aliases
-- [ ] PROD-3 Competitor products
-- [ ] PROD-4 Deactivate
+## PROD  (Area 2)
+- [x] PROD-1 Catalog list (`viewProducts`, uses filtered-list; type/status filters)
+- [x] PROD-2 Add/Edit — slug immutable on edit, editable on create (OQ-8 default); aliases, sort order
+- [x] PROD-3 Competitor products (neutral placeholders; first-class + flagged)
+- [x] PROD-4 Deactivate ≠ delete (archives; excluded from grants + retrieval)
 
 ## KB
 - [ ] KB-1 Document list + status
