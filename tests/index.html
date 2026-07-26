@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Merz Product Expert — Tests</title>
+<style>
+  body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; margin: 24px; color: #111; background: #fff; }
+  h1 { font-size: 18px; }
+  .row { padding: 4px 8px; border-radius: 6px; font-family: ui-monospace, Menlo, monospace; }
+  .ok { color: #0a7d2c; }
+  .fail { color: #c0203a; background: #fdecef; }
+  .summary { margin-top: 16px; font-weight: 700; }
+</style>
+</head>
+<body>
+<h1>Service layer + access control tests</h1>
+<div id="out"></div>
+<div class="summary" id="sum"></div>
+
+<script src="../js/data.js"></script>
+<script src="../js/services.js"></script>
+<script src="../js/components.js"></script>
+<script src="tests.js"></script>
+<script>
+  var out = document.getElementById('out');
+  var pass = 0, fail = 0;
+  function line(ok, m) {
+    var d = document.createElement('div');
+    d.className = 'row ' + (ok ? 'ok' : 'fail');
+    d.textContent = (ok ? '  ok   ' : ' FAIL  ') + m;
+    out.appendChild(d);
+  }
+  var t = {
+    ok: function (c, m) { c ? pass++ : fail++; line(!!c, m); },
+    eq: function (a, b, m) { var c = a === b; c ? pass++ : fail++; line(c, m + (c ? '' : ' (got ' + JSON.stringify(a) + ', want ' + JSON.stringify(b) + ')')); }
+  };
+  try { window.MerzTests(t); }
+  catch (e) { fail++; line(false, 'test suite threw: ' + (e && e.message)); }
+  document.getElementById('sum').textContent = pass + ' passed, ' + fail + ' failed';
+</script>
+</body>
+</html>

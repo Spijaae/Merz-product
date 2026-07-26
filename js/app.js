@@ -67,11 +67,26 @@
   /* --------------------------------------------------------- product access
      Role-based entitlement: an admin assigns which medicines each rep may
      handle. The signed-in rep only sees products in S.access. */
-  const canAccess = (pid) => S.access.indexOf(pid) !== -1;
-  const accessProducts = () => ALL_PRODUCTS.filter(canAccess);
+  /* Access decisions are delegated to the service layer (the single enforcement
+     point). Views read from it; they never re-implement the security filter. */
+  const SVC = window.MerzService;
+  const canAccess = (pid) => SVC.canAccessProduct(pid);
+  const accessProducts = () => { const g = SVC.grantedProductSlugs(); return ALL_PRODUCTS.filter((p) => g.indexOf(p) !== -1); };
   function syncAccessFromUsers() {
     const me = S.users.find((u) => u.name === CURRENT_REP);
-    if (me) { S.access = (me.products && me.products.length ? me.products : ALL_PRODUCTS).slice(); save('merz_access', S.access); }
+    const slugs = (me && me.products && me.products.length ? me.products : ALL_PRODUCTS).slice();
+    S.access = slugs; save('merz_access', S.access);
+    const karim = SVC.userByName(CURRENT_REP);
+    if (karim) SVC.setBrandGrants(karim.id, slugs); // write grants through the service
+  }
+  /* Keep the service session aligned with the active persona so role and
+     permission-set checks resolve against the right user. */
+  let _lastSessionRole = null;
+  function syncSession() {
+    const role = roleOfView(S.view);
+    if (role === _lastSessionRole) return;
+    _lastSessionRole = role;
+    SVC.setSession({ rep: CURRENT_REP, mgr: 'Bahaa K.', adm: 'Fouad J.' }[role] || CURRENT_REP);
   }
 
   const allQuestions = () => QUESTIONS.concat(S.assess.custom);
@@ -181,7 +196,15 @@
     let entry = null;
     if (forcedEntryId) entry = KB.concat(OBJECTIONS).find((e) => e.id === forcedEntryId) || null;
     if (!entry) entry = matchEntry(text);
-    return { entry, pv: detectPV(text), offlabel: detectOffLabel(text), gap: !entry };
+    /* Part D1 step 2 — brand-grant scoping enforced at retrieval by the service.
+       A denied product is an authorization boundary, NOT a content gap: even a
+       keyword match or a forced entry cannot surface an ungranted product. */
+    let denied = null;
+    if (entry) {
+      const auth = SVC.authorizeRetrieval(entry.product);
+      if (!auth.allowed) { denied = { product: entry.product, reason: auth.reason }; entry = null; }
+    }
+    return { entry, pv: detectPV(text), offlabel: detectOffLabel(text), gap: !entry && !denied, denied };
   }
 
   /* =====================================================================
@@ -315,10 +338,19 @@
     let out = `<div class="pillrow">
       <span class="pill2 scope">${dot(scopeColor, 8)} ${esc(scope)}</span>
       ${pill('mkt', 'UAE')}
-      ${r.entry ? pill('trust', `${ic('check', 13)} ${r.entry.sources.length} approved source${r.entry.sources.length > 1 ? 's' : ''} · UAE label checked`) : pill('mkt', 'No approved answer yet')}
+      ${r.entry ? pill('trust', `${ic('check', 13)} ${r.entry.sources.length} approved source${r.entry.sources.length > 1 ? 's' : ''} · UAE label checked`) : (r.denied ? pill('mkt', `${ic('lock', 12)} Restricted`) : pill('mkt', 'No approved answer yet'))}
       ${r.entry ? pill('rev', `${ic('clock', 12)} Source set reviewed 3 Jul 2026`) : ''}
     </div>
     <div class="qtitle">${esc(turn.question)}</div>`;
+
+    if (r.denied) {
+      const dp = PRODUCTS[r.denied.product];
+      out += `<div class="abox"><div class="gband" style="border-left-color:var(--warn-ink)"><div class="gh">${ic('lock', 13)} Not in your assigned products</div>
+        <div class="lead"><b>${esc(dp ? dp.name : 'This product')}</b> isn't among the medicines your admin has assigned to you, so its approved sources aren't retrievable from your account. Contact your admin if you need this access.</div></div>
+        <div class="disc">${ic('info', 15)}<span>Access is enforced when sources are <b>retrieved</b> — not just hidden in the menu. This request was blocked at the retrieval layer.</span></div></div>
+        <div class="actrow"><div class="abtn" data-action="nav" data-view="lib">${ic('library', 14)} Browse your assigned Library</div></div>`;
+      return out;
+    }
 
     if (r.pv) {
       out += `<div class="warnband pv"><div class="wh">${ic('shieldAlert', 14)} Possible adverse event / product complaint</div>
@@ -1204,6 +1236,7 @@
   function render() {
     if (!S.authed) { app().innerHTML = viewLogin(); return; }
     if (S.view === 'onboard') { app().innerHTML = viewOnboard(); return; }
+    syncSession();
     const role = roleOfView(S.view);
     const active = S.view;
     let activeProduct = null;
@@ -1216,5 +1249,7 @@
     if (S.view === 'lib') { const i = $('#libInput'); if (i && S.lib.q) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
   }
 
+  SVC.init();               // seed the service store (Part E) + session
+  syncAccessFromUsers();    // write the signed-in rep's brand grants through the service
   render();
 })();
