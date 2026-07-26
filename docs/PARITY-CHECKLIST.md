@@ -5,7 +5,7 @@ Legend: `[ ]` missing · `[~]` partial · `[x]` done. "UI" = present as UI only;
 "svc" = enforced/backed by the service layer. Build mode: **client-only
 simulation** (service layer plays the server).
 
-_Last updated: Area 5 — Ask UI polish (memory, feedback, comparison)._
+_Last updated: Area 6 — Brand detail, Chat history, Home stats._
 
 **Area 1 landed:** `js/services.js` (the single enforcement point + Part E store),
 `js/components.js` (reusable filtered-list, Part D4), retrieval now scoped by the
@@ -21,16 +21,16 @@ content gap or a fabricated answer. Tests in `tests/` (20 assertions, run with
 - [x] AUTH-5 Simulated session identity in service (svc)
 
 ## NAV
-- [~] NAV-1 Top bar (needs tier label)
+- [x] NAV-1 Top bar + EXPERT tier label
 - [~] NAV-2 FOR ME / ADMIN nav groups
 - [~] NAV-3 Admin-only rendering (not a real boundary)
 - [x] NAV-4 Grant-filtered sidebar/home/library (now via service · svc)
 - [x] NAV-5 Active pill + accent
-- [ ] NAV-6 cid routes / /admin/* routes
+- [~] NAV-6 cid-addressable threads + view routing (no URL bar)
 
 ## HOME
-- [~] HOME-1 Greeting card (needs corpus summary)
-- [ ] HOME-2 Stat cards
+- [x] HOME-1 Greeting card + corpus summary (N brands · N sources)
+- [x] HOME-2 Stat cards (questions / active reps / approved sources)
 - [x] HOME-3 Ask bar + voice
 - [~] HOME-4 Suggested chips (static, not top-team)
 - [x] HOME-5 Brand list (grant-filtered UI)
@@ -55,13 +55,13 @@ content gap or a fabricated answer. Tests in `tests/` (20 assertions, run with
 - [x] ASK-17 Q/A logged (MerzService.logAnswer)
 
 ## BRAND
-- [ ] BRAND-1 Hero
-- [ ] BRAND-2 Key differentiators
-- [ ] BRAND-3 Common team questions
-- [ ] BRAND-4 KB count + type chips
+- [x] BRAND-1 Hero (eyebrow, indication, chips, Ask button)
+- [x] BRAND-2 Key differentiators (category / best-for / sources)
+- [x] BRAND-3 Common questions from the team
+- [x] BRAND-4 KB count + content-type chips
 
 ## HIST / LIB
-- [ ] HIST-1 Chat history (persisted threads)
+- [x] HIST-1 Chat history — persisted threads by cid, reopenable
 - [x] LIB-1 Library search + filters
 - [x] LIB-2 Quick-access chips
 - [x] LIB-3 Doc viewer / bookmark / ask

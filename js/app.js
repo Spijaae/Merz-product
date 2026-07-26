@@ -53,6 +53,9 @@
     qFilter: { product: 'all', origin: 'all', status: 'all' },
     prodFilter: { q: '', type: 'all', status: 'all' },
     kb: { tab: 'active', q: '', parsingDocId: null, fileName: '', product: '' },
+    threads: load('merz_threads', []),
+    hist: { q: '' },
+    brandView: null,
     assess: {
       threshold: storedAssess.threshold != null ? storedAssess.threshold : 80,
       cert: storedAssess.cert || clone(REP_CERT),
@@ -300,25 +303,47 @@
   function askQuestion(text, forcedEntryId) {
     text = (text || '').trim();
     if (!text) return;
-    if (!S.chat || !S.chat.turns) S.chat = { cid: 'c-' + Math.random().toString(36).slice(2, 9), turns: [] };
+    if (!S.chat || !S.chat.turns) S.chat = { cid: 'c-' + Math.random().toString(36).slice(2, 9), startedAt: Date.now(), turns: [] };
     const turn = { question: text, resolved: null, stage: 'searching', mode: 'hcp', drawerOpen: false };
     S.chat.turns.push(turn);
-    S.view = 'chat'; S.navOpen = false;
+    S.view = 'thread'; S.navOpen = false;
     render();
     setTimeout(() => {
       turn.resolved = resolve(text, forcedEntryId);
       // Part D1 step 6 — stage the reveal: retrieval trace + confidence first,
       // then the answer body resolves (mimics streaming).
+      const done = () => { turn.stage = 'full'; render(); saveThread(); const m = $('.main'); if (m) m.scrollTop = m.scrollHeight; };
       if (turn.resolved.entry || turn.resolved.comparison) {
         turn.stage = 'trace'; render();
-        setTimeout(() => { turn.stage = 'full'; render(); const m = $('.main'); if (m) m.scrollTop = m.scrollHeight; }, 650);
-      } else {
-        turn.stage = 'full'; render();
-        const m = $('.main'); if (m) m.scrollTop = m.scrollHeight;
-      }
+        setTimeout(done, 650);
+      } else { done(); }
     }, 650);
   }
   function newQuestion() { S.chat = null; S.view = 'home'; S.navOpen = false; render(); setTimeout(() => { const i = $('#askInput'); if (i) i.focus(); }, 30); }
+
+  /* Persist threads for Chat history (addressable by cid). */
+  function saveThread() {
+    if (!S.chat || !S.chat.cid || !S.chat.turns.length) return;
+    const answered = S.chat.turns.filter((t) => t.resolved);
+    if (!answered.length) return;
+    const lastEntry = answered.slice().reverse().find((t) => t.resolved.entry);
+    const rec = {
+      cid: S.chat.cid, title: S.chat.turns[0].question,
+      product: lastEntry ? lastEntry.resolved.entry.product : (answered[answered.length - 1].resolved.comparison ? 'compare' : null),
+      startedAt: S.chat.startedAt || Date.now(), updatedAt: Date.now(),
+      turns: answered.map((t) => ({ question: t.question, entryId: t.resolved.entry ? t.resolved.entry.id : null, mode: t.mode }))
+    };
+    const i = S.threads.findIndex((x) => x.cid === rec.cid);
+    if (i === -1) S.threads.unshift(rec); else S.threads[i] = rec;
+    save('merz_threads', S.threads);
+  }
+  function openThread(cid) {
+    const rec = S.threads.find((x) => x.cid === cid);
+    if (!rec) return;
+    S.chat = { cid: rec.cid, startedAt: rec.startedAt, turns: rec.turns.map((t) => ({ question: t.question, mode: t.mode || 'hcp', stage: 'full', drawerOpen: false, resolved: resolve(t.question, t.entryId) })) };
+    S.view = 'thread'; S.navOpen = false; render();
+  }
+  function openBrand(slug) { S.brandView = slug; S.view = 'brand'; S.navOpen = false; render(); window.scrollTo(0, 0); }
 
   const ADMIN_VIEWS = ['adm', 'assess', 'products', 'kb', 'kbadd'];
   const roleOfView = (v) => (v === 'mgr' ? 'mgr' : ADMIN_VIEWS.indexOf(v) !== -1 ? 'adm' : 'rep');
@@ -390,14 +415,23 @@
 
     const brands = accessProducts().map((pid) => { const p = PRODUCTS[pid];
       return `<div class="bcard"><div class="bar" style="background:${p.color}"></div><div class="in">
-        <div class="hd"><div class="ic" style="background:${p.bg};color:${p.color}">${p.letter}</div><div><div class="nm">${p.name}</div><div class="cat2">${p.cat2}</div></div></div>
+        <div class="hd" data-action="openbrand" data-product="${p.id}" style="cursor:pointer"><div class="ic" style="background:${p.bg};color:${p.color}">${p.letter}</div><div><div class="nm">${p.name}</div><div class="cat2">${p.cat2}</div></div></div>
         <div class="q" data-action="ask" data-q="${esc(p.spark)}">${esc(p.spark)} ${ic('chevronRight', 15)}</div>
         <div class="appr">${ic('check', 13)} UAE-approved · Reviewed ${p.reviewed}</div></div></div>`;
     }).join('');
 
+    const myGranted = accessProducts();
+    const srcCount = SVC.documents().filter((d) => d.status === 'active' && myGranted.indexOf(d.product_slug) !== -1).length;
+    const qAsked = 581 + SVC.answers().length;
+    const statCards = `<div class="statcards">
+      <div class="statcard"><div class="sl mono">QUESTIONS ASKED</div><div class="sv">${qAsked}</div><div class="ss">${307 + S.threads.length} threads</div></div>
+      <div class="statcard"><div class="sl mono">ACTIVE REPS</div><div class="sv">${REPS.length}</div><div class="ss">of ${REPS.length} on the team</div></div>
+      <div class="statcard"><div class="sl mono">APPROVED SOURCES</div><div class="sv">${srcCount}</div><div class="ss">across ${myGranted.length} brand${myGranted.length !== 1 ? 's' : ''}</div></div>
+    </div>`;
     return `
       <div class="hero"><div class="date mono">FRIDAY, JULY 10</div><h1>Good morning, Karim</h1>
-        <div class="sub">Ask anything about your products. Every answer comes from approved Merz sources.</div></div>
+        <div class="sub">${myGranted.length} brand${myGranted.length !== 1 ? 's' : ''} · ${srcCount} approved sources in your knowledge base. Every answer comes from approved Merz sources.</div></div>
+      ${statCards}
       <div class="ask">${ic('search', 18)}<input id="askInput" placeholder="Ask anything about your products..." autocomplete="off">
         <span class="kbd">&#8984;K</span><span class="mic" data-action="mic" title="Voice input">${ic('mic', 18)}</span><span class="go" data-action="asksend">${ic('send', 18)}</span></div>
       <div class="cats">${cats}</div>
@@ -580,6 +614,75 @@
         <div class="ask"><input id="askInput" placeholder="Ask a follow-up${active.resolved && active.resolved.entry ? ' about ' + PRODUCTS[active.resolved.entry.product].name : ''}..." autocomplete="off"><span class="mic" data-action="mic">${ic('mic', 18)}</span><span class="go" data-action="asksend">${ic('send', 18)}</span></div>
         <div class="voicehint">${ic('volume', 12)} Voice transcribes to text for your confirmation before sending.</div>
       </div>${backdrop}${drawer}</div>`;
+  }
+
+  /* =====================================================================
+     CHAT HISTORY (HIST-1)
+     ===================================================================== */
+  function histRow(rec) {
+    const p = rec.product && PRODUCTS[rec.product];
+    const av = p ? `<span class="bic" style="background:${p.bg};color:${p.color}">${p.letter}</span>`
+      : `<span class="bic" style="background:var(--p1-bg);color:var(--ink)">${ic('compare', 13)}</span>`;
+    return `<div class="histrow" data-action="openthread" data-cid="${esc(rec.cid)}">
+      ${av}<span class="ht"><b>${esc(rec.title)}</b><span class="hm">${rec.turns.length} message${rec.turns.length > 1 ? 's' : ''}${p ? ' · ' + esc(p.name) : ''}</span></span>
+      <span class="ar">${ic('chevronRight', 16)}</span></div>`;
+  }
+  function viewHistory() {
+    const list = MerzUI.filteredListHtml({
+      items: S.threads.slice(), query: S.hist.q, searchKeys: ['title'],
+      searchAction: 'histsearch', searchId: 'histInput', icon: ic('search', 16),
+      searchPlaceholder: 'Search your questions…',
+      countLabel: (n, total) => n + ' of ' + total + ' threads',
+      rowRenderer: histRow,
+      emptyHtml: '<div class="fl-empty">No conversations yet. Ask a question on Home to start one.</div>'
+    });
+    return `
+      <div class="hero"><div class="date mono">CHAT HISTORY</div><h1>Your conversations</h1>
+        <div class="sub">Every question you've asked, newest first. Open one to continue the thread.</div></div>
+      ${list}`;
+  }
+
+  /* =====================================================================
+     BRAND / PRODUCT DETAIL (BRAND-1..4)
+     ===================================================================== */
+  function viewBrand() {
+    const slug = S.brandView, p = PRODUCTS[slug], sp = SVC.productBySlug(slug);
+    if (!p || !canAccess(slug)) {
+      return `<div class="hero"><div class="date mono">BRANDS</div><h1>Not available</h1>
+        <div class="sub">This product isn't in the medicines assigned to you.</div></div>
+        <button class="backbtn" data-action="nav" data-view="home">${ic('arrowLeft', 15)} Back to Home</button>`;
+    }
+    const docs = SVC.documents().filter((d) => d.product_slug === slug && d.status === 'active');
+    const chunkCount = SVC.chunks().filter((c) => c.product_slug === slug).length;
+    const types = Array.from(new Set(docs.map((d) => d.type).filter(Boolean)));
+    const typeChips = (types.length ? types : ['clinical', 'regulatory', 'training']).map((t) => `<span class="ftchip">${esc(t)}</span>`).join('');
+    const team = TEAM_ASKED.filter((t) => t.product === slug);
+    const kbqs = KB.filter((e) => e.product === slug);
+    const commons = (team.length ? team.map((t) => ({ q: t.q, n: t.n, entry: t.entry }))
+      : kbqs.slice(0, 4).map((e) => ({ q: e.q, n: null, entry: e.id })));
+    const commonHtml = commons.map((c) =>
+      `<div class="row" data-action="ask" ${c.entry ? `data-entry="${esc(c.entry)}"` : ''} data-q="${esc(c.q)}"><span class="bic" style="background:${p.bg};color:${p.color}">${p.letter}</span>${esc(c.q)}${c.n ? `<span class="n">${c.n} asks</span>` : ''}<span class="ar">${ic('chevronRight', 16)}</span></div>`
+    ).join('');
+    const chips = [p.spark].concat(kbqs.map((e) => e.q).filter((q) => q !== p.spark)).slice(0, 2)
+      .map((q) => `<span class="q" data-action="ask" data-q="${esc(q)}">${esc(q)}</span>`).join('');
+    return `
+      <div class="crumb"><span data-action="nav" data-view="home">Brands</span> ${ic('chevronRight', 12)} <b>${esc(p.name)}</b></div>
+      <div class="bhero" style="background:${p.bg}">
+        <div class="beyebrow mono">${esc(p.cat2)}</div>
+        <h1 class="bname">${esc(p.name)}</h1>
+        <div class="bind">${esc(sp && sp.description ? sp.description : p.category)}</div>
+        <div class="bchips">${chips}</div>
+        <button class="btn-dark bask" data-action="ask" data-q="${esc(p.spark)}">${ic('messageSquare', 14)} Ask about ${esc(p.name)}</button>
+      </div>
+      <div class="bsec"><div class="seclbl mono">KEY DIFFERENTIATORS</div>
+        <div class="bdiff"><div class="dt">CATEGORY</div><div class="dd">${esc(p.category)}</div>
+          <div class="dt">BEST FOR</div><div class="dd">${esc(sp && sp.description ? sp.description : '—')}</div>
+          <div class="dt">APPROVED SOURCES</div><div class="dd">${docs.length} indexed in the knowledge base</div></div></div>
+      <div class="bsec"><div class="seclbl mono">COMMON QUESTIONS FROM THE TEAM</div>
+        <div class="asked">${commonHtml || '<div class="empty">No questions yet.</div>'}</div></div>
+      <div class="bsec"><div class="seclbl mono">KNOWLEDGE BASE</div>
+        <div class="bkb">${ic('layers', 15)} <b>${docs.length} approved source${docs.length !== 1 ? 's' : ''}</b> · ${chunkCount} indexed chunks
+          <div class="ftchips" style="margin-top:8px">${typeChips}</div></div></div>`;
   }
 
   /* =====================================================================
@@ -1427,7 +1530,10 @@
     ask: (d) => askQuestion(d.q || (d.entry && (KB.concat(OBJECTIONS).find((e) => e.id === d.entry) || {}).q), d.entry),
     askclose: (d) => { closeModal(); askQuestion(d.q); },
     asksend: () => { const i = $('#askInput'); if (i) askQuestion(i.value); },
-    prod: (d) => askQuestion('Tell me about ' + PRODUCTS[d.product].name),
+    prod: (d) => openBrand(d.product),
+    openbrand: (d) => openBrand(d.product),
+    openthread: (d) => openThread(d.cid),
+    histsearch: () => { const i = $('#histInput'); if (i) { S.hist.q = i.value; render(); } },
     dismiss: (d) => { if (S.dismissed.indexOf(d.id) === -1) S.dismissed.push(d.id); save('merz_dismissed', S.dismissed); render(); },
     dyncard: () => { go('lib'); toast('Opened the updated document in the Library', 'good'); },
     bell: () => notifications(),
@@ -1575,12 +1681,13 @@
     if (ev.target.id === 'libInput') { ev.preventDefault(); S.lib.q = ev.target.value; render(); }
     if (ev.target.id === 'prodInput') { ev.preventDefault(); S.prodFilter.q = ev.target.value; render(); }
     if (ev.target.id === 'kbInput') { ev.preventDefault(); S.kb.q = ev.target.value; render(); }
+    if (ev.target.id === 'histInput') { ev.preventDefault(); S.hist.q = ev.target.value; render(); }
   });
 
   /* =====================================================================
      RENDER
      ===================================================================== */
-  const VIEWS = { home: viewHome, chat: viewChat, lib: viewLibrary, cert: viewCert, mgr: viewManager, adm: viewAdmin, assess: viewAssess, products: viewProducts, kb: viewKB, kbadd: viewKBAdd };
+  const VIEWS = { home: viewHome, chat: viewHistory, thread: viewChat, brand: viewBrand, lib: viewLibrary, cert: viewCert, mgr: viewManager, adm: viewAdmin, assess: viewAssess, products: viewProducts, kb: viewKB, kbadd: viewKBAdd };
   function render() {
     if (!S.authed) { app().innerHTML = viewLogin(); return; }
     if (S.view === 'onboard') { app().innerHTML = viewOnboard(); return; }
@@ -1588,15 +1695,17 @@
     const role = roleOfView(S.view);
     const active = S.view;
     let activeProduct = null;
-    if (S.view === 'chat' && S.chat && S.chat.turns && S.chat.turns.length) {
+    if (S.view === 'thread' && S.chat && S.chat.turns && S.chat.turns.length) {
       const last = S.chat.turns[S.chat.turns.length - 1];
       if (last.resolved && last.resolved.entry) activeProduct = last.resolved.entry.product;
     }
+    if (S.view === 'brand') activeProduct = S.brandView;
     const content = (VIEWS[S.view] || viewHome)();
     app().innerHTML = `<div class="shell${S.navOpen ? ' nav-open' : ''}">${sidebar(role, active, activeProduct)}<div class="nav-backdrop" data-action="closenav"></div><div class="workarea">${appbar(role)}<main class="main">${content}</main></div></div>`;
     if (S.view === 'lib') { const i = $('#libInput'); if (i && S.lib.q) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
     if (S.view === 'products') { const i = $('#prodInput'); if (i && S.prodFilter.q) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
     if (S.view === 'kb') { const i = $('#kbInput'); if (i && S.kb.q) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+    if (S.view === 'chat') { const i = $('#histInput'); if (i && S.hist.q) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
     if (S.view === 'kbadd') wireKbDrop();
   }
 
