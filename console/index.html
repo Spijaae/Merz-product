@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Allys Console — Desktop Console for Field-Sales Oversight</title>
+<meta name="description" content="Desktop console for the AllysAI Sales Companion: manager oversight, analytics, coaching review, medical affairs, pharmacovigilance, compliance and configuration.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='14'%20fill='%230B6E75'/%3E%3Cpath%20d='M20%2044L32%2018l12%2026'%20stroke='white'%20stroke-width='5'%20fill='none'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+/* ============================================================
+   ALLYS CONSOLE — DESIGN SYSTEM
+   Subject: pharmaceutical field-sales oversight (regulated back-office)
+   Palette: cool blue-biased slate neutrals + petrol-teal brand accent.
+   Semantic status colours are reserved and separate from the accent.
+   ============================================================ */
+:root{
+  /* --- brand / accent (Allys petrol teal) --- */
+  --brand:#0B6E75; --brand-600:#0A616A; --brand-500:#12909A; --brand-400:#1FA9B4;
+  --brand-tint:#E4F1F2; --brand-tint-2:#D2E8EA;
+  /* --- neutrals: slate with a slight blue bias (chosen, not default) --- */
+  --ink:#101822; --ink-2:#31404F; --muted:#5C6C7C; --faint:#8A99A7;
+  --line:#E2E8EC; --line-2:#EDF1F4; --line-strong:#CDD6DD;
+  --bg:#F4F6F8; --panel:#FFFFFF; --panel-2:#FAFBFC; --panel-3:#F1F4F6;
+  --rail:#0E1922; --rail-2:#13232E; --rail-line:#22333F; --rail-ink:#C6D3DB; --rail-muted:#7E93A0;
+  /* --- status (reserved; never used as chart-series identity) --- */
+  --good:#1F8A57; --good-bg:#E4F3EA; --good-line:#B7E0C6;
+  --warn:#B4740B; --warn-bg:#FBF0DC; --warn-line:#EFD7A6;
+  --crit:#C43B33; --crit-bg:#FBE7E5; --crit-line:#F1C3BE;
+  --info:#2C64C9; --info-bg:#E6EEFB; --info-line:#BFD3F4;
+  --viol:#6C4FD1; --viol-bg:#EDE8FB; --viol-line:#D3C7F2;   /* competitive */
+  --pv:#B01E63;  --pv-bg:#FBE6F0;  --pv-line:#F0BAD5;        /* pharmacovigilance */
+  /* --- data-viz categorical (fixed order; validated, always with legend+labels) --- */
+  --c1:#0E9BA6; --c2:#6C5CE7; --c3:#E0932F; --c4:#3BA776; --c5:#3B7DD8; --c6:#D65CA8;
+  --grid:#EAEEF1; --axis:#B7C1C9;
+  /* --- geometry --- */
+  --r-xs:4px; --r-sm:6px; --r-md:9px; --r-lg:13px; --r-pill:999px;
+  --sh-1:0 1px 2px rgba(16,24,34,.06),0 1px 3px rgba(16,24,34,.04);
+  --sh-2:0 4px 12px rgba(16,24,34,.10),0 2px 4px rgba(16,24,34,.06);
+  --sh-3:0 18px 44px rgba(16,24,34,.18);
+  --rail-w:250px; --top-h:56px;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","JetBrains Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){ :root{
+  --ink:#E7EDF1; --ink-2:#C0CCD5; --muted:#93A2AE; --faint:#6E7E8B;
+  --line:#243441; --line-2:#1D2A35; --line-strong:#324453;
+  --bg:#0B1218; --panel:#121C24; --panel-2:#0F1820; --panel-3:#182530;
+  --rail:#0A131A; --rail-2:#0E1A22; --rail-line:#1E2E39; --rail-ink:#B7C6D0; --rail-muted:#6C7F8C;
+  --good-bg:#123324; --good-line:#1E5138; --warn-bg:#3A2B0E; --warn-line:#6B4E12;
+  --crit-bg:#3A1613; --crit-line:#6E2620; --info-bg:#122544; --info-line:#274a86;
+  --viol-bg:#221A46; --viol-line:#3d2f77; --pv-bg:#37102a; --pv-line:#6a1f4b;
+  --brand-tint:#0d2a2c; --brand-tint-2:#10393c;
+  --grid:#1E2C37; --axis:#3A4C5A;
+  --sh-1:0 1px 2px rgba(0,0,0,.4); --sh-2:0 6px 18px rgba(0,0,0,.5); --sh-3:0 20px 48px rgba(0,0,0,.6);
+}}
+:root[data-theme="dark"]{
+  --ink:#E7EDF1; --ink-2:#C0CCD5; --muted:#93A2AE; --faint:#6E7E8B;
+  --line:#243441; --line-2:#1D2A35; --line-strong:#324453;
+  --bg:#0B1218; --panel:#121C24; --panel-2:#0F1820; --panel-3:#182530;
+  --rail:#0A131A; --rail-2:#0E1A22; --rail-line:#1E2E39; --rail-ink:#B7C6D0; --rail-muted:#6C7F8C;
+  --good-bg:#123324; --good-line:#1E5138; --warn-bg:#3A2B0E; --warn-line:#6B4E12;
+  --crit-bg:#3A1613; --crit-line:#6E2620; --info-bg:#122544; --info-line:#274a86;
+  --viol-bg:#221A46; --viol-line:#3d2f77; --pv-bg:#37102a; --pv-line:#6a1f4b;
+  --brand-tint:#0d2a2c; --brand-tint-2:#10393c;
+  --grid:#1E2C37; --axis:#3A4C5A;
+  --sh-1:0 1px 2px rgba(0,0,0,.4); --sh-2:0 6px 18px rgba(0,0,0,.5); --sh-3:0 20px 48px rgba(0,0,0,.6);
+}
+:root[data-theme="light"]{
+  --ink:#101822; --ink-2:#31404F; --muted:#5C6C7C; --faint:#8A99A7;
+  --line:#E2E8EC; --line-2:#EDF1F4; --line-strong:#CDD6DD;
+  --bg:#F4F6F8; --panel:#FFFFFF; --panel-2:#FAFBFC; --panel-3:#F1F4F6;
+  --brand-tint:#E4F1F2; --brand-tint-2:#D2E8EA;
+  --good-bg:#E4F3EA; --good-line:#B7E0C6; --warn-bg:#FBF0DC; --warn-line:#EFD7A6;
+  --crit-bg:#FBE7E5; --crit-line:#F1C3BE; --info-bg:#E6EEFB; --info-line:#BFD3F4;
+  --viol-bg:#EDE8FB; --viol-line:#D3C7F2; --pv-bg:#FBE6F0; --pv-line:#F0BAD5;
+  --grid:#EAEEF1; --axis:#B7C1C9;
+  --sh-1:0 1px 2px rgba(16,24,34,.06),0 1px 3px rgba(16,24,34,.04);
+  --sh-2:0 4px 12px rgba(16,24,34,.10),0 2px 4px rgba(16,24,34,.06);
+  --sh-3:0 18px 44px rgba(16,24,34,.18);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button{font-family:inherit;cursor:pointer}
+a{color:inherit}
+::selection{background:var(--brand-tint-2);color:var(--ink)}
+:focus-visible{outline:2px solid var(--brand-400);outline-offset:2px;border-radius:3px}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.mono{font-family:var(--mono)}
+
+/* ---------------- APP SHELL ---------------- */
+.app{display:grid;grid-template-columns:var(--rail-w) 1fr;grid-template-rows:100vh;height:100vh;overflow:hidden}
+.app.rail-collapsed{--rail-w:64px}
+
+/* left rail */
+.rail{background:var(--rail);border-right:1px solid var(--rail-line);display:flex;flex-direction:column;
+  height:100vh;overflow:hidden;color:var(--rail-ink)}
+.rail-brand{display:flex;align-items:center;gap:10px;height:var(--top-h);padding:0 16px;flex:0 0 auto;
+  border-bottom:1px solid var(--rail-line)}
+.rail-logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(150deg,var(--brand-400),var(--brand));
+  display:grid;place-items:center;flex:0 0 auto;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.rail-logo svg{width:17px;height:17px}
+.rail-name{font-weight:700;font-size:14px;letter-spacing:-.01em;color:#fff;white-space:nowrap}
+.rail-name span{color:var(--brand-400);font-weight:600}
+.app.rail-collapsed .rail-name,.app.rail-collapsed .rail-tenant,.app.rail-collapsed .nav-label,
+.app.rail-collapsed .nav-group-t,.app.rail-collapsed .nav-badge,.app.rail-collapsed .rail-foot-txt{display:none}
+.app.rail-collapsed .nav-item{justify-content:center;padding:9px 0}
+.rail-tenant{margin:12px 12px 6px;padding:9px 10px;border:1px solid var(--rail-line);border-radius:var(--r-md);
+  background:var(--rail-2);cursor:pointer;display:flex;align-items:center;gap:9px}
+.rail-tenant:hover{border-color:var(--brand-500)}
+.tenant-dot{width:8px;height:8px;border-radius:50%;background:var(--brand-400);flex:0 0 auto;box-shadow:0 0 0 3px rgba(18,144,154,.2)}
+.tenant-meta{min-width:0}
+.tenant-name{font-size:12px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tenant-sub{font-size:10.5px;color:var(--rail-muted);white-space:nowrap}
+.nav{flex:1 1 auto;overflow-y:auto;padding:6px 8px 14px}
+.nav::-webkit-scrollbar{width:8px}.nav::-webkit-scrollbar-thumb{background:var(--rail-line);border-radius:8px}
+.nav-group-t{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--rail-muted);
+  padding:14px 10px 5px}
+.nav-item{display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:var(--r-sm);color:var(--rail-ink);
+  font-size:12.5px;font-weight:500;cursor:pointer;position:relative;border:1px solid transparent;white-space:nowrap}
+.nav-item:hover{background:var(--rail-2);color:#fff}
+.nav-item svg{width:16px;height:16px;flex:0 0 auto;stroke:currentColor;opacity:.9}
+.nav-item.active{background:linear-gradient(90deg,rgba(18,144,154,.22),rgba(18,144,154,.06));color:#fff;
+  border-color:var(--rail-line)}
+.nav-item.active::before{content:"";position:absolute;left:-8px;top:6px;bottom:6px;width:3px;border-radius:3px;background:var(--brand-400)}
+.nav-label{flex:1 1 auto}
+.nav-badge{font-size:10px;font-weight:700;min-width:17px;height:17px;padding:0 5px;border-radius:9px;display:grid;
+  place-items:center;background:var(--crit);color:#fff}
+.nav-badge.amber{background:var(--warn)} .nav-badge.neutral{background:var(--rail-line);color:var(--rail-ink)}
+.rail-foot{flex:0 0 auto;border-top:1px solid var(--rail-line);padding:9px}
+.rail-user{display:flex;align-items:center;gap:9px;padding:6px;border-radius:var(--r-sm);cursor:pointer}
+.rail-user:hover{background:var(--rail-2)}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--brand-600);color:#fff;display:grid;place-items:center;
+  font-size:11px;font-weight:700;flex:0 0 auto}
+.rail-foot-txt{min-width:0}.rail-foot-txt b{display:block;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rail-foot-txt span{font-size:10.5px;color:var(--rail-muted)}
+
+/* main column */
+.main{display:flex;flex-direction:column;height:100vh;overflow:hidden;min-width:0}
+.topbar{height:var(--top-h);flex:0 0 auto;background:var(--panel);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:14px;padding:0 18px}
+.icon-btn{width:32px;height:32px;border-radius:var(--r-sm);border:1px solid transparent;background:transparent;color:var(--muted);
+  display:grid;place-items:center}
+.icon-btn:hover{background:var(--panel-3);color:var(--ink);border-color:var(--line)}
+.icon-btn svg{width:17px;height:17px}
+.crumb{display:flex;align-items:center;gap:8px;min-width:0}
+.crumb b{font-size:14px;font-weight:650;letter-spacing:-.01em}
+.crumb span{color:var(--faint);font-size:12px}
+.search{flex:1 1 auto;max-width:440px;position:relative}
+.search input{width:100%;height:34px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel-2);
+  padding:0 12px 0 34px;font-size:12.5px;color:var(--ink)}
+.search input:focus{outline:none;border-color:var(--brand-400);background:var(--panel);box-shadow:0 0 0 3px var(--brand-tint)}
+.search svg{position:absolute;left:10px;top:9px;width:16px;height:16px;color:var(--faint)}
+.search kbd{position:absolute;right:8px;top:8px;font-size:10px;font-family:var(--mono);color:var(--faint);
+  border:1px solid var(--line);border-radius:4px;padding:1px 5px;background:var(--panel)}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:6px}
+.compliance{display:flex;align-items:center;gap:7px;padding:5px 11px;border-radius:var(--r-pill);border:1px solid var(--good-line);
+  background:var(--good-bg);color:var(--good);font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+.compliance .beat{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 0 rgba(31,138,87,.5);
+  animation:beat 2.4s infinite}
+@keyframes beat{0%{box-shadow:0 0 0 0 rgba(31,138,87,.45)}70%{box-shadow:0 0 0 6px rgba(31,138,87,0)}100%{box-shadow:0 0 0 0 rgba(31,138,87,0)}}
+.cycle-pick{display:flex;align-items:center;gap:7px;height:32px;padding:0 11px;border:1px solid var(--line);border-radius:var(--r-md);
+  background:var(--panel-2);font-size:12px;font-weight:550;color:var(--ink-2)}
+.cycle-pick:hover{border-color:var(--line-strong)}.cycle-pick svg{width:14px;height:14px;color:var(--faint)}
+.bell{position:relative}.bell::after{content:"";position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;
+  background:var(--crit);border:2px solid var(--panel)}
+
+/* content scroll area */
+.content{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;scroll-behavior:smooth}
+.content::-webkit-scrollbar{width:11px}.content::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:8px;border:3px solid var(--bg)}
+.page{padding:20px 24px 60px;max-width:1560px;margin:0 auto}
+
+/* page header */
+.phead{display:flex;align-items:flex-start;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.phead-t h1{margin:0;font-size:20px;font-weight:700;letter-spacing:-.02em}
+.phead-t p{margin:4px 0 0;color:var(--muted);font-size:12.5px;max-width:70ch}
+.phead-act{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 13px;border-radius:var(--r-md);font-size:12px;
+  font-weight:600;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);white-space:nowrap}
+.btn:hover{border-color:var(--line-strong);background:var(--panel-2)}
+.btn svg{width:15px;height:15px}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.primary:hover{background:var(--brand-600)}
+.btn.ghost{border-color:transparent;background:transparent}.btn.ghost:hover{background:var(--panel-3)}
+.btn.sm{height:27px;padding:0 10px;font-size:11.5px}
+.btn.danger{color:var(--crit);border-color:var(--crit-line)}.btn.danger:hover{background:var(--crit-bg)}
+
+/* filter bar */
+.filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;padding:10px 12px;border:1px solid var(--line);
+  border-radius:var(--r-lg);background:var(--panel)}
+.fl-field{display:flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r-sm);
+  background:var(--panel-2);font-size:12px;color:var(--ink-2);font-weight:550}
+.fl-field:hover{border-color:var(--line-strong)}.fl-field svg{width:13px;height:13px;color:var(--faint)}
+.fl-field b{color:var(--ink);font-weight:650}
+.fl-sep{width:1px;height:20px;background:var(--line);margin:0 2px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 6px 0 10px;border-radius:var(--r-pill);
+  background:var(--brand-tint);border:1px solid var(--brand-tint-2);color:var(--brand);font-size:11.5px;font-weight:600}
+.chip button{border:none;background:transparent;color:var(--brand);display:grid;place-items:center;padding:2px;border-radius:50%}
+.chip button:hover{background:var(--brand-tint-2)}.chip svg{width:12px;height:12px}
+
+/* ---------------- GRID + PANELS ---------------- */
+.grid{display:grid;gap:14px}
+.g-2{grid-template-columns:repeat(2,1fr)} .g-3{grid-template-columns:repeat(3,1fr)}
+.g-4{grid-template-columns:repeat(4,1fr)} .g-6{grid-template-columns:repeat(6,1fr)}
+.span-2{grid-column:span 2}.span-3{grid-column:span 3}.span-4{grid-column:span 4}
+@media(max-width:1200px){.g-4{grid-template-columns:repeat(2,1fr)}.g-6{grid-template-columns:repeat(3,1fr)}
+  .g-3{grid-template-columns:repeat(2,1fr)}.span-2,.span-3,.span-4{grid-column:auto}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh-1)}
+.panel-h{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line-2)}
+.panel-h h3{margin:0;font-size:13px;font-weight:650;letter-spacing:-.01em}
+.panel-h .sub{color:var(--faint);font-size:11px;font-weight:500}
+.panel-h .act{margin-left:auto;display:flex;align-items:center;gap:6px}
+.panel-b{padding:14px}
+.link{color:var(--brand-500);font-weight:600;font-size:11.5px;display:inline-flex;align-items:center;gap:4px}
+.link:hover{color:var(--brand)}.link svg{width:13px;height:13px}
+
+/* KPI tiles */
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 15px;box-shadow:var(--sh-1);
+  display:flex;flex-direction:column;gap:9px;min-width:0}
+.kpi-top{display:flex;align-items:center;gap:8px}
+.kpi-ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--brand-tint);color:var(--brand);flex:0 0 auto}
+.kpi-ic svg{width:16px;height:16px}
+.kpi-l{font-size:11.5px;color:var(--muted);font-weight:600}
+.kpi-v{font-size:26px;font-weight:750;letter-spacing:-.02em;line-height:1}
+.kpi-v small{font-size:14px;font-weight:600;color:var(--faint)}
+.kpi-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;padding:2px 6px;border-radius:var(--r-pill)}
+.delta svg{width:12px;height:12px}
+.delta.up{color:var(--good);background:var(--good-bg)}.delta.down{color:var(--crit);background:var(--crit-bg)}
+.delta.flat{color:var(--muted);background:var(--panel-3)}
+.kpi-sub{font-size:11px;color:var(--faint)}
+.kpi-target{height:5px;border-radius:5px;background:var(--panel-3);overflow:hidden;position:relative}
+.kpi-target i{position:absolute;inset:0 auto 0 0;border-radius:5px;background:var(--brand-400)}
+.kpi-target .mark{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink-2);border-radius:2px}
+
+/* ---------------- STATUS PILLS ---------------- */
+.pill{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 8px;border-radius:var(--r-pill);font-size:10.5px;
+  font-weight:700;letter-spacing:.01em;border:1px solid transparent;white-space:nowrap}
+.pill svg{width:11px;height:11px}
+.pill .dt{width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.good{color:var(--good);background:var(--good-bg);border-color:var(--good-line)}
+.pill.warn{color:var(--warn);background:var(--warn-bg);border-color:var(--warn-line)}
+.pill.crit{color:var(--crit);background:var(--crit-bg);border-color:var(--crit-line)}
+.pill.info{color:var(--info);background:var(--info-bg);border-color:var(--info-line)}
+.pill.viol{color:var(--viol);background:var(--viol-bg);border-color:var(--viol-line)}
+.pill.pv{color:var(--pv);background:var(--pv-bg);border-color:var(--pv-line)}
+.pill.neutral{color:var(--muted);background:var(--panel-3);border-color:var(--line)}
+.pill.solid{background:var(--brand);color:#fff;border-color:var(--brand)}
+.tier{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:5px;font-size:10.5px;font-weight:800;font-family:var(--mono)}
+.tier.A{background:#EAF3EE;color:#1F8A57;border:1px solid var(--good-line)}
+.tier.B{background:#FBF0DC;color:#B4740B;border:1px solid var(--warn-line)}
+.tier.C{background:var(--panel-3);color:var(--muted);border:1px solid var(--line)}
+:root[data-theme="dark"] .tier.A{background:var(--good-bg)} :root[data-theme="dark"] .tier.B{background:var(--warn-bg)}
+
+/* ---------------- TABLES ---------------- */
+.tbl-wrap{overflow-x:auto;border-radius:0 0 var(--r-lg) var(--r-lg)}
+table.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl thead th{position:sticky;top:0;z-index:2;background:var(--panel-2);text-align:left;font-size:10.5px;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl thead th.r{text-align:right}.tbl td.r{text-align:right}
+.tbl th.sort{cursor:pointer}.tbl th.sort:hover{color:var(--ink)}
+.tbl th.sort svg{width:12px;height:12px;vertical-align:-2px;opacity:.5;margin-left:2px}
+.tbl tbody td{padding:9px 12px;border-bottom:1px solid var(--line-2);color:var(--ink-2);vertical-align:middle}
+.tbl tbody tr:hover{background:var(--panel-2)}
+.tbl tbody tr.sel{background:var(--brand-tint)}
+.tbl .strong{color:var(--ink);font-weight:600}
+.tbl .rowlink{cursor:pointer}
+.ck{width:15px;height:15px;border:1.5px solid var(--line-strong);border-radius:4px;display:inline-grid;place-items:center;
+  background:var(--panel);vertical-align:-3px;color:transparent}
+.ck.on{background:var(--brand);border-color:var(--brand);color:#fff}.ck svg{width:11px;height:11px}
+.cellface{display:flex;align-items:center;gap:9px;min-width:0}
+.mini-av{width:24px;height:24px;border-radius:50%;background:var(--panel-3);color:var(--ink-2);display:grid;place-items:center;
+  font-size:9.5px;font-weight:700;flex:0 0 auto;border:1px solid var(--line)}
+.subtle{color:var(--faint);font-size:11px}
+.bulkbar{display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--ink);color:#fff;border-radius:var(--r-md);
+  margin:0 14px 12px;font-size:12px}
+.bulkbar .cnt{font-weight:700}.bulkbar .sp{margin-left:auto}
+.bulkbar .bb{display:inline-flex;align-items:center;gap:6px;color:#fff;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);
+  height:27px;padding:0 10px;border-radius:var(--r-sm);font-size:11.5px;font-weight:600}
+.bulkbar .bb:hover{background:rgba(255,255,255,.22)}.bulkbar .bb svg{width:13px;height:13px}
+.tbl-foot{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--line-2);color:var(--muted);font-size:11.5px}
+.pager{margin-left:auto;display:flex;align-items:center;gap:4px}
+.pager button{min-width:27px;height:27px;border:1px solid var(--line);background:var(--panel);border-radius:var(--r-sm);font-size:11.5px;
+  color:var(--ink-2);font-weight:600;font-variant-numeric:tabular-nums}
+.pager button:hover{border-color:var(--line-strong)}.pager button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+
+/* bars in cells */
+.cellbar{display:flex;align-items:center;gap:8px}
+.cellbar .track{flex:1 1 auto;height:6px;background:var(--panel-3);border-radius:5px;overflow:hidden;min-width:54px}
+.cellbar .fill{height:100%;border-radius:5px;background:var(--brand-400)}
+.cellbar .fill.good{background:var(--good)}.cellbar .fill.warn{background:var(--warn)}.cellbar .fill.crit{background:var(--crit)}
+.cellbar b{font-variant-numeric:tabular-nums;font-size:11.5px;color:var(--ink);min-width:34px;text-align:right}
+
+/* ---------------- CHART PRIMITIVES ---------------- */
+.chart{width:100%}
+.axis-l{font-size:10px;fill:var(--faint);font-family:var(--sans)}
+.grid-l{stroke:var(--grid);stroke-width:1}
+.legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);font-weight:550}
+.legend .lk{display:inline-flex;align-items:center;gap:6px}
+.legend .sw{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
+.legend .sw.ln{height:3px;width:14px;border-radius:2px}
+.donut-center{font-weight:750;letter-spacing:-.02em}
+.spark{display:block}
+.tt{position:fixed;z-index:80;pointer-events:none;background:var(--ink);color:#fff;font-size:11px;padding:7px 9px;border-radius:6px;
+  box-shadow:var(--sh-2);opacity:0;transition:opacity .1s;max-width:230px}
+.tt .tk{display:flex;align-items:center;gap:6px;margin-top:3px}.tt .tk .sw{width:8px;height:8px;border-radius:2px}
+.tt b{font-weight:700}.tt .tv{margin-left:auto;font-variant-numeric:tabular-nums;padding-left:14px}
+
+/* progress ring */
+.ring-wrap{display:flex;align-items:center;gap:12px}
+.readi{display:inline-grid;place-items:center;position:relative}
+.readi b{position:absolute;font-size:12px;font-weight:750}
+
+/* ---------------- STATES (empty / loading / error) ---------------- */
+.state{display:flex;flex-direction:column;align-items:center;text-align:center;padding:40px 24px;gap:12px}
+.state-ic{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;background:var(--panel-3);color:var(--muted)}
+.state-ic svg{width:24px;height:24px}
+.state h4{margin:0;font-size:15px;font-weight:650}.state p{margin:0;color:var(--muted);font-size:12.5px;max-width:44ch}
+.state.err .state-ic{background:var(--crit-bg);color:var(--crit)}
+.skel{background:linear-gradient(90deg,var(--panel-3) 25%,var(--line-2) 37%,var(--panel-3) 63%);background-size:400% 100%;
+  animation:sh 1.3s ease infinite;border-radius:5px}
+@keyframes sh{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.dots{display:inline-flex;gap:4px}.dots i{width:6px;height:6px;border-radius:50%;background:var(--brand-400);animation:bl 1s infinite}
+.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+@keyframes bl{0%,80%,100%{opacity:.25}40%{opacity:1}}
+
+/* banners */
+.banner{display:flex;align-items:flex-start;gap:11px;padding:11px 14px;border-radius:var(--r-md);border:1px solid;font-size:12.5px}
+.banner svg{width:17px;height:17px;flex:0 0 auto;margin-top:1px}
+.banner b{font-weight:700}
+.banner.pv{background:var(--pv-bg);border-color:var(--pv-line);color:var(--pv)}
+.banner.warn{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn)}
+.banner.info{background:var(--info-bg);border-color:var(--info-line);color:var(--info)}
+.banner .x{margin-left:auto}
+.banner .tx{color:var(--ink-2)}.banner.pv .tx{color:var(--pv)}
+
+/* drawer */
+.scrim{position:fixed;inset:0;background:rgba(10,16,22,.44);z-index:60;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,94vw);background:var(--panel);border-left:1px solid var(--line);
+  z-index:70;transform:translateX(100%);transition:transform .24s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;box-shadow:var(--sh-3)}
+.drawer.on{transform:none}
+.drawer-h{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line)}
+.drawer-h h3{margin:0;font-size:15px;font-weight:700}
+.drawer-b{flex:1 1 auto;overflow-y:auto;padding:18px}
+.drawer-f{flex:0 0 auto;border-top:1px solid var(--line);padding:12px 18px;display:flex;gap:8px;justify-content:flex-end;background:var(--panel-2)}
+
+/* misc utility */
+.def{display:grid;grid-template-columns:120px 1fr;gap:6px 14px;font-size:12.5px}
+.def dt{color:var(--muted);font-weight:550}.def dd{margin:0;color:var(--ink);font-weight:550}
+.hr{height:1px;background:var(--line);border:0;margin:14px 0}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;color:var(--muted);background:var(--panel-3);
+  border:1px solid var(--line);border-radius:var(--r-sm);padding:2px 7px}
+.mut{color:var(--muted)} .fnt{color:var(--faint)} .ink{color:var(--ink)}
+.sec-t{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:26px 0 12px;
+  display:flex;align-items:center;gap:9px}
+.sec-t::after{content:"";flex:1;height:1px;background:var(--line)}
+.stk{display:flex;flex-direction:column;gap:2px}
+.flow-note{font-size:11px;color:var(--faint);font-style:italic}
+
+/* timeline */
+.tl{position:relative;padding-left:22px}
+.tl::before{content:"";position:absolute;left:6px;top:4px;bottom:4px;width:2px;background:var(--line)}
+.tl-item{position:relative;padding:0 0 16px}
+.tl-dot{position:absolute;left:-22px;top:2px;width:14px;height:14px;border-radius:50%;background:var(--panel);border:2px solid var(--brand-400);z-index:1}
+.tl-dot.good{border-color:var(--good)}.tl-dot.pv{border-color:var(--pv)}.tl-dot.warn{border-color:var(--warn)}
+.tl-t{font-size:12px;font-weight:650}.tl-m{font-size:11px;color:var(--faint)}
+.tl-x{margin-top:4px;font-size:11.5px;color:var(--ink-2);background:var(--panel-2);border:1px solid var(--line-2);border-radius:var(--r-sm);padding:8px 10px}
+
+/* config layout */
+.cfg{display:grid;grid-template-columns:210px 1fr;gap:18px;align-items:start}
+@media(max-width:900px){.cfg{grid-template-columns:1fr}}
+.cfg-nav{position:sticky;top:0;display:flex;flex-direction:column;gap:2px}
+.cfg-nav a{display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:var(--r-sm);font-size:12px;font-weight:550;color:var(--ink-2)}
+.cfg-nav a:hover{background:var(--panel-3)}.cfg-nav a.on{background:var(--brand-tint);color:var(--brand);font-weight:650}
+.cfg-nav a svg{width:15px;height:15px}
+.cfg-nav .grp{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:12px 11px 4px}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.field label{font-size:11.5px;font-weight:650;color:var(--ink-2)}
+.field .hint{font-size:11px;color:var(--faint)}
+.field input[type=text],.field input[type=number],.field select,.field textarea{height:34px;border:1px solid var(--line);
+  border-radius:var(--r-sm);padding:0 11px;font-size:12.5px;background:var(--panel-2);color:var(--ink);font-family:inherit}
+.field textarea{height:auto;padding:9px 11px;resize:vertical}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--brand-400);box-shadow:0 0 0 3px var(--brand-tint)}
+.toggle{width:38px;height:22px;border-radius:12px;background:var(--line-strong);position:relative;transition:.15s;flex:0 0 auto}
+.toggle.on{background:var(--brand)}.toggle i{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.15s;box-shadow:var(--sh-1)}
+.toggle.on i{left:18px}
+.swatchrow{display:flex;gap:8px;flex-wrap:wrap}
+.swatch{width:34px;height:34px;border-radius:8px;border:2px solid var(--panel);box-shadow:0 0 0 1px var(--line)}
+.swatch.on{box-shadow:0 0 0 2px var(--brand)}
+.rowedit{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel-2);margin-bottom:8px}
+
+/* design-system swatches */
+.ds-sw{border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden}
+.ds-sw .cap{height:52px}.ds-sw .meta{padding:8px 10px;font-size:11px}
+.ds-sw .meta b{display:block;font-size:11.5px}.ds-sw .meta code{font-family:var(--mono);color:var(--faint);font-size:10.5px}
+.type-row{display:flex;align-items:baseline;gap:16px;padding:10px 0;border-bottom:1px solid var(--line-2)}
+.type-row .lbl{width:120px;flex:0 0 auto;font-size:11px;color:var(--faint)}
+
+/* responsive rail -> overlay on small screens */
+@media(max-width:840px){
+  .app{grid-template-columns:1fr}
+  .rail{position:fixed;left:0;top:0;bottom:0;width:250px;z-index:90;transform:translateX(-100%);transition:transform .2s}
+  .app.rail-open .rail{transform:none}
+  .rail-toggle-wide{display:none}
+}
+.rail-scrim{display:none}
+@media(max-width:840px){.app.rail-open .rail-scrim{display:block;position:fixed;inset:0;background:rgba(10,16,22,.4);z-index:80}}
+.only-wide{}@media(max-width:840px){.only-wide{display:none}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <!-- LEFT RAIL -->
+  <aside class="rail" id="rail">
+    <div class="rail-brand">
+      <div class="rail-logo">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 19L12 4l8 15" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.2 15h7.6" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </div>
+      <div class="rail-name">Allys <span>Console</span></div>
+    </div>
+    <div class="rail-tenant" onclick="toast('Tenant switcher — isolated per client (§4.5)')">
+      <span class="tenant-dot"></span>
+      <div class="tenant-meta">
+        <div class="tenant-name">Gulf Pharma FZ-LLC</div>
+        <div class="tenant-sub">UAE tenant · en · ar</div>
+      </div>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="color:var(--rail-muted)"><path d="M8 9l4-4 4 4M8 15l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <nav class="nav" id="nav"><!-- built by JS --></nav>
+    <div class="rail-foot">
+      <div class="rail-user" onclick="toast('Signed in as Nadia Haddad — First-line Sales Manager')">
+        <div class="avatar">NH</div>
+        <div class="rail-foot-txt"><b>Nadia Haddad</b><span>First-line Manager</span></div>
+      </div>
+    </div>
+  </aside>
+  <div class="rail-scrim" onclick="toggleRail(false)"></div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn" onclick="toggleRail()" title="Toggle navigation" aria-label="Toggle navigation">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <div class="crumb"><span id="crumbGrp"></span><b id="crumbTitle">Manager Dashboard</b></div>
+      <div class="search only-wide">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M20 20l-3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <input placeholder="Search reps, HCPs, audit events, reports…" onfocus="toast('Global search spans reps, HCPs, audit trail & reports')">
+        <kbd>⌘K</kbd>
+      </div>
+      <div class="top-right">
+        <button class="cycle-pick only-wide" onclick="toast('Reporting period — Cycle 4 · 15 Jul–11 Aug 2026')">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M4 9h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          Cycle 4 · Wk 3
+        </button>
+        <button class="compliance" onclick="go('compliance')" title="Compliance status">
+          <span class="beat"></span> All systems compliant
+        </button>
+        <button class="icon-btn bell" onclick="toast('3 items need review — 1 PV, 2 escalations')" aria-label="Notifications">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M6 9a6 6 0 1112 0c0 5 2 6 2 6H4s2-1 2-6z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 20a2 2 0 004 0" stroke="currentColor" stroke-width="1.7"/></svg>
+        </button>
+        <button class="icon-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme" id="themeBtn">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </header>
+    <main class="content" id="content"><!-- screen renders here --></main>
+  </div>
+</div>
+
+<!-- DRAWER -->
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true">
+  <div class="drawer-h">
+    <h3 id="drawerTitle">Detail</h3>
+    <button class="icon-btn" onclick="closeDrawer()" style="margin-left:auto" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div class="drawer-b" id="drawerBody"></div>
+  <div class="drawer-f" id="drawerFoot"></div>
+</aside>
+<div class="tt" id="tt"></div>
+<div id="toast" style="position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(30px);z-index:100;background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:12.5px;font-weight:550;box-shadow:var(--sh-3);opacity:0;transition:.22s;pointer-events:none;max-width:80vw"></div>
+
+<script>
+/* ============================================================
+   ICONS — inline SVG (offline, no external deps)
+   ============================================================ */
+const I={
+ dash:'<path d="M4 13h7V4H4v9zM13 20h7V4h-7v16zM4 20h7v-5H4v5z"/>',
+ chart:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+ coach:'<path d="M12 3l8 4-8 4-8-4 8-4z"/><path d="M6 9v4c0 2 3 3 6 3s6-1 6-3V9"/>',
+ mkt:'<path d="M3 11l16-7v16L3 13v-2z"/><path d="M7 12v5a2 2 0 004 0"/>',
+ pv:'<path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z"/><path d="M12 8v5M12 16h.01"/>',
+ shield:'<path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z"/>',
+ cog:'<circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
+ grid:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+ palette:'<circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="9" r="1"/><circle cx="15.5" cy="9" r="1"/><circle cx="9" cy="15" r="1"/>',
+ map:'<path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/>',
+ users:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5"/><path d="M16 5.5a3.2 3.2 0 010 6M21 20c0-2.5-1.3-4.2-3.5-4.8"/>',
+ target:'<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="1"/>',
+ route:'<circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="6" r="2.4"/><path d="M8.4 17H14a3 3 0 000-6H9a3 3 0 010-6h3.6"/>',
+ check:'<path d="M4 12l5 5L20 6"/>',
+ checkc:'<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
+ x:'<path d="M6 6l12 12M18 6L6 18"/>',
+ alert:'<path d="M12 3l9 16H3l9-16z"/><path d="M12 9v5M12 17h.01"/>',
+ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+ doc:'<path d="M14 3H6v18h12V7l-4-4z"/><path d="M14 3v4h4"/>',
+ download:'<path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>',
+ filter:'<path d="M3 5h18l-7 8v5l-4 2v-7L3 5z"/>',
+ search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/>',
+ up:'<path d="M6 15l6-6 6 6"/>',down:'<path d="M6 9l6 6 6-6"/>',
+ arrowup:'<path d="M12 19V5M6 11l6-6 6 6"/>',arrowdown:'<path d="M12 5v14M6 13l6 6 6-6"/>',
+ arrowr:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+ flag:'<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
+ mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0012 0M12 17v4"/>',
+ msg:'<path d="M4 5h16v11H9l-4 4V5z"/>',
+ pill:'<rect x="3" y="9" width="18" height="6" rx="3" transform="rotate(-45 12 12)"/><path d="M8.5 8.5l7 7"/>',
+ book:'<path d="M4 5c0-1 1-2 3-2h5v17H7c-2 0-3 1-3 1V5z"/><path d="M20 5c0-1-1-2-3-2h-5v17h5c2 0 3 1 3 1V5z"/>',
+ building:'<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2"/>',
+ lang:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
+ lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>',
+ eye:'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+ play:'<path d="M7 5l12 7-12 7V5z"/>',
+ star:'<path d="M12 3l2.6 5.6 6 .8-4.4 4.2 1.1 6-5.3-3-5.3 3 1.1-6L3 9.4l6-.8L12 3z"/>',
+ trend:'<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+ sliders:'<path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h7M15 18h5"/><circle cx="15" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="13" cy="18" r="2"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>',
+ edit:'<path d="M4 20h4L18 10l-4-4L4 16v4z"/><path d="M13 6l4 4"/>',
+ route2:'<path d="M4 7h10a3 3 0 010 6H8a3 3 0 000 6h12"/>',
+ tag:'<path d="M3 3h8l10 10-8 8L3 11V3z"/><circle cx="7.5" cy="7.5" r="1.4"/>',
+ branch:'<circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="8" r="2.4"/><path d="M6 8.4v7.2M8.4 7.4c6 1 4 8 9 3.6"/>',
+ refresh:'<path d="M20 11a8 8 0 10-2 6M20 5v6h-6"/>',
+ send:'<path d="M4 12l16-8-6 16-3-6-7-2z"/>',
+ export:'<path d="M12 15V4M8 8l4-4 4 4M6 15v4a1 1 0 001 1h10a1 1 0 001-1v-4"/>',
+ folder:'<path d="M3 7h6l2 2h10v10H3V7z"/>',
+ info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5h.01"/>',
+ dots:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+ quote:'<path d="M9 7H5v6h4l-2 4M19 7h-4v6h4l-2 4"/>',
+ mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+ empty:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 11h18M8 4h8"/>',
+ sun:'<circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.5 4.5l1.4 1.4M18 18l1.5 1.5M4.5 19.5l1.4-1.4M18 6l1.5-1.5"/>'
+};
+function ic(name,cls){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" '+(cls?'class="'+cls+'"':'')+'>'+(I[name]||'')+'</svg>';}
+window.ic=ic;
+</script>
+<script id="app-data">
+/* ============================================================
+   MOCK DATA — fictional demo data (UAE tenant). Not real medical info.
+   ============================================================ */
+const REPS=[
+ {id:'r1',n:'Layla Mansour',terr:'Dubai · Marina',cov:94,adh:91,crm:96,ready:88,visits:132,recaps:2,flag:''},
+ {id:'r2',n:'Omar Farouk',terr:'Abu Dhabi · Corniche',cov:81,adh:78,crm:72,ready:64,visits:118,recaps:6,flag:'crm'},
+ {id:'r3',n:'Yasmin Haddad',terr:'Sharjah · Central',cov:97,adh:95,crm:99,ready:93,visits:141,recaps:0,flag:''},
+ {id:'r4',n:'Karim Nasser',terr:'Dubai · Deira',cov:69,adh:64,crm:58,ready:52,visits:96,recaps:9,flag:'coach'},
+ {id:'r5',n:'Rania Aziz',terr:'Al Ain · North',cov:88,adh:86,crm:90,ready:79,visits:124,recaps:3,flag:''},
+ {id:'r6',n:'Tariq Saleh',terr:'Abu Dhabi · Khalidiya',cov:76,adh:82,crm:81,ready:71,visits:109,recaps:4,flag:''},
+ {id:'r7',n:'Huda Khalil',terr:'Dubai · JLT',cov:91,adh:88,crm:93,ready:85,visits:128,recaps:1,flag:''},
+ {id:'r8',n:'Sami Dabbagh',terr:'Sharjah · Industrial',cov:63,adh:59,crm:66,ready:48,visits:88,recaps:11,flag:'coach'}
+];
+const PRODUCTS=[
+ {id:'p1',n:'Cardovyn XR',sku:'CVX-40',ta:'Cardiology',ind:'Hypertension',status:'Active',mat:14,cov:82},
+ {id:'p2',n:'Neurolet',sku:'NRL-25',ta:'Neurology',ind:'Focal seizures',status:'Active',mat:9,cov:71},
+ {id:'p3',n:'Dermavia',sku:'DRV-05',ta:'Dermatology',ind:'Plaque psoriasis',status:'Active',mat:11,cov:64},
+ {id:'p4',n:'Pulmoease',sku:'PLE-12',ta:'Respiratory',ind:'COPD maintenance',status:'Active',mat:7,cov:58},
+ {id:'p5',n:'Glucara',sku:'GLC-1000',ta:'Endocrinology',ind:'Type 2 diabetes',status:'Draft',mat:3,cov:0}
+];
+const HCPS=[
+ {id:'h1',n:'Dr. Amina Al-Rashid',spec:'Cardiologist',tier:'A',org:'Rashid Hospital',city:'Dubai',consent:'Email · WhatsApp',sent:'Positive',last:'2 days ago',visits:14},
+ {id:'h2',n:'Dr. Hassan Qureshi',spec:'Neurologist',tier:'A',org:'Cleveland Clinic AD',city:'Abu Dhabi',consent:'Email',sent:'Neutral',last:'5 days ago',visits:9},
+ {id:'h3',n:'Dr. Leila Barakat',spec:'Dermatologist',tier:'B',org:'Mediclinic City',city:'Dubai',consent:'None',sent:'Positive',last:'1 week ago',visits:6},
+ {id:'h4',n:'Dr. Faisal Al-Nuaimi',spec:'Pulmonologist',tier:'B',org:'Burjeel Hospital',city:'Abu Dhabi',consent:'SMS',sent:'Cautious',last:'3 days ago',visits:8},
+ {id:'h5',n:'Dr. Noura Saeed',spec:'Endocrinologist',tier:'C',org:'NMC Royal',city:'Sharjah',consent:'Email',sent:'Neutral',last:'2 weeks ago',visits:3}
+];
+const REPORTS=[
+ {id:'rp1',n:'Sales Weekly Activity',cat:'Commercial',cad:'Weekly · Mon 07:00',rec:'Managers, RSD',owner:'Auto',last:'Aug 3',fmt:'PDF · CSV',ic:'chart'},
+ {id:'rp2',n:'Commercial Performance',cat:'Commercial',cad:'Monthly · 1st',rec:'Commercial Lead',owner:'Auto',last:'Aug 1',fmt:'PDF · XLSX',ic:'trend'},
+ {id:'rp3',n:'HCP Engagement',cat:'Commercial',cad:'Bi-weekly',rec:'Managers',owner:'Auto',last:'Jul 28',fmt:'PDF',ic:'users'},
+ {id:'rp4',n:'Representative Scorecards',cat:'Commercial',cad:'Monthly · 1st',rec:'Managers',owner:'Auto',last:'Aug 1',fmt:'PDF',ic:'target'},
+ {id:'rp5',n:'Competitive Intelligence',cat:'Marketing',cad:'Weekly · Fri',rec:'Marketing, CI desk',owner:'Auto',last:'Aug 1',fmt:'PDF · CSV',ic:'flag'},
+ {id:'rp6',n:'Off-label Query Report',cat:'Compliance',cad:'Weekly · Mon',rec:'Medical Affairs',owner:'Auto',last:'Aug 3',fmt:'CSV',ic:'shield'},
+ {id:'rp7',n:'PV Alerts & Summary',cat:'Safety',cad:'Daily + on-signal',rec:'PV team',owner:'Auto',last:'Today 06:00',fmt:'PDF · CSV',ic:'pv'},
+ {id:'rp8',n:'Training Gap Analysis',cat:'Coaching',cad:'Monthly',rec:'Managers, L&D',owner:'Auto',last:'Aug 1',fmt:'PDF',ic:'coach'},
+ {id:'rp9',n:'Compliance Audit Log',cat:'Compliance',cad:'On-demand + Monthly',rec:'Compliance',owner:'Auto',last:'Aug 2',fmt:'CSV',ic:'lock'},
+ {id:'rp10',n:'Platform Adoption Metrics',cat:'Ops',cad:'Weekly · Mon',rec:'Deployment lead',owner:'Auto',last:'Aug 3',fmt:'PDF',ic:'grid'}
+];
+const AUDIT=[
+ {t:'09:42:18',rep:'Layla Mansour',hcp:'Dr. Al-Rashid',prod:'Cardovyn XR',q:'Onset of action for once-daily dosing?',st:'Compliant',conf:0.96},
+ {t:'09:40:55',rep:'Karim Nasser',hcp:'Dr. Barakat',prod:'Dermavia',q:'Can I use it for paediatric eczema?',st:'Off-Label Refused',conf:0.99},
+ {t:'09:37:12',rep:'Omar Farouk',hcp:'Dr. Qureshi',prod:'Neurolet',q:'Patient reported severe rash after 3 doses',st:'PV Signal',conf:0.94},
+ {t:'09:31:40',rep:'Yasmin Haddad',hcp:'Dr. Al-Nuaimi',prod:'Pulmoease',q:'How does it compare to Spiriva on FEV1?',st:'Competitive Mention',conf:0.88},
+ {t:'09:28:03',rep:'Rania Aziz',hcp:'Dr. Saeed',prod:'Cardovyn XR',q:'Renal dose adjustment threshold?',st:'Compliant',conf:0.93},
+ {t:'09:22:47',rep:'Huda Khalil',hcp:'Dr. Al-Rashid',prod:'Cardovyn XR',q:'Any interaction with ACE inhibitors?',st:'Compliant',conf:0.97},
+ {t:'09:19:11',rep:'Sami Dabbagh',hcp:'Dr. Barakat',prod:'Dermavia',q:'Off-label dose for scalp psoriasis?',st:'Off-Label Refused',conf:0.98},
+ {t:'09:14:36',rep:'Tariq Saleh',hcp:'Dr. Qureshi',prod:'Neurolet',q:'Competitor X pricing vs ours',st:'Competitive Mention',conf:0.85},
+ {t:'09:08:59',rep:'Omar Farouk',hcp:'Dr. Al-Nuaimi',prod:'Pulmoease',q:'Dizziness reported, is this expected?',st:'PV Signal',conf:0.91},
+ {t:'09:02:20',rep:'Layla Mansour',hcp:'Dr. Saeed',prod:'Glucara',q:'HbA1c reduction at 24 weeks?',st:'Compliant',conf:0.95}
+];
+const PV=[
+ {id:'PV-2026-0847',rep:'Omar Farouk',hcp:'Dr. Qureshi',prod:'Neurolet',sig:'Severe cutaneous rash after 3 doses',sev:'Serious',st:'Awaiting review',ts:'Today 09:37',age:'2h 14m'},
+ {id:'PV-2026-0846',rep:'Omar Farouk',hcp:'Dr. Al-Nuaimi',prod:'Pulmoease',sig:'Dizziness / near-syncope',sev:'Non-serious',st:'Awaiting review',ts:'Today 09:08',age:'2h 43m'},
+ {id:'PV-2026-0845',rep:'Rania Aziz',hcp:'Dr. Saeed',prod:'Glucara',sig:'Nausea and vomiting, persistent',sev:'Non-serious',st:'In review',ts:'Today 08:11',age:'3h 40m'},
+ {id:'PV-2026-0844',rep:'Yasmin Haddad',hcp:'Dr. Al-Rashid',prod:'Cardovyn XR',sig:'Angioedema — lip swelling',sev:'Serious',st:'Approved · Sent',ts:'Yest 16:22',age:'—'},
+ {id:'PV-2026-0843',rep:'Huda Khalil',hcp:'Dr. Barakat',prod:'Dermavia',sig:'Injection-site reaction, prolonged',sev:'Non-serious',st:'Approved · Sent',ts:'Yest 14:05',age:'—'}
+];
+const MKT=[
+ {typ:'Material',dest:'Marketing',rep:'Layla Mansour',hcp:'Dr. Al-Rashid',prod:'Cardovyn XR',txt:'Visual aid p.4 (MoA animation) landed very well — asked for a copy.',sent:'Positive',t:'2h ago'},
+ {typ:'Medical Q',dest:'Medical Affairs',rep:'Karim Nasser',hcp:'Dr. Barakat',prod:'Dermavia',txt:'Requested head-to-head data vs biologic in paediatric — routed as off-label.',sent:'Neutral',t:'3h ago'},
+ {typ:'Competitive',dest:'CI Desk',rep:'Yasmin Haddad',hcp:'Dr. Al-Nuaimi',prod:'Pulmoease',txt:'Doctor currently prescribes Spiriva; cited convenience of once-daily.',sent:'Cautious',t:'4h ago'},
+ {typ:'Material',dest:'Marketing',rep:'Rania Aziz',hcp:'Dr. Saeed',prod:'Cardovyn XR',txt:'Leave-behind felt text-heavy; wanted a one-page summary.',sent:'Negative',t:'5h ago'},
+ {typ:'Medical Q',dest:'Medical Affairs',rep:'Huda Khalil',hcp:'Dr. Al-Rashid',prod:'Cardovyn XR',txt:'Asked about long-term renal outcomes beyond 2 years.',sent:'Neutral',t:'6h ago'},
+ {typ:'Competitive',dest:'CI Desk',rep:'Tariq Saleh',hcp:'Dr. Qureshi',prod:'Neurolet',txt:'Mentioned Competitor X running a formulary push at his hospital.',sent:'Cautious',t:'7h ago'},
+ {typ:'Event',dest:'Marketing',rep:'Layla Mansour',hcp:'Dr. Al-Rashid',prod:'—',txt:'Agreed to attend the October cardiology symposium.',sent:'Positive',t:'8h ago'}
+];
+const COACH=[
+ {rep:'Sami Dabbagh',topic:'Pricing objection — Dermavia',score:'Needs work',sessions:4,trend:-8,last:'role-play',when:'Yest'},
+ {rep:'Karim Nasser',topic:'Dosing accuracy — Neurolet',score:'Developing',sessions:6,trend:5,last:'debrief flag',when:'2d ago'},
+ {rep:'Tariq Saleh',topic:'Competitive framing — Pulmoease',score:'Developing',sessions:3,trend:12,last:'role-play',when:'3d ago'},
+ {rep:'Omar Farouk',topic:'CRM completeness habit',score:'Needs work',sessions:5,trend:-3,last:'manager 1:1',when:'4d ago'},
+ {rep:'Rania Aziz',topic:'Objection handling — Cardovyn',score:'Strong',sessions:7,trend:9,last:'role-play',when:'5d ago'}
+];
+</script>
+<script id="app-core">
+/* ============================================================
+   CORE — helpers, chart primitives, components, router
+   ============================================================ */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---- toast / tooltip ---- */
+let _tT;
+function toast(msg){const t=$('#toast');t.textContent=msg;t.style.opacity=1;t.style.transform='translateX(-50%) translateY(0)';
+  clearTimeout(_tT);_tT=setTimeout(()=>{t.style.opacity=0;t.style.transform='translateX(-50%) translateY(30px)';},2600);}
+window.toast=toast;
+function showTT(e,html){const tt=$('#tt');tt.innerHTML=html;tt.style.opacity=1;
+  let x=e.clientX+14,y=e.clientY+14;if(x+240>innerWidth)x=e.clientX-240;tt.style.left=x+'px';tt.style.top=y+'px';}
+function hideTT(){$('#tt').style.opacity=0;}
+
+/* ---- theme + rail ---- */
+function toggleTheme(){const r=document.documentElement;const cur=r.getAttribute('data-theme')||'light';
+  r.setAttribute('data-theme',cur==='light'?'dark':'light');}
+function toggleRail(force){const a=$('#app');const small=innerWidth<=840;
+  if(small){a.classList.toggle('rail-open',force===undefined?!a.classList.contains('rail-open'):force);}
+  else{a.classList.toggle('rail-collapsed',force===undefined?!a.classList.contains('rail-collapsed'):!force);}}
+window.toggleTheme=toggleTheme;window.toggleRail=toggleRail;
+
+/* ---- drawer ---- */
+function openDrawer(title,body,foot){$('#drawerTitle').innerHTML=title;$('#drawerBody').innerHTML=body;
+  $('#drawerFoot').innerHTML=foot||'';$('#drawer').classList.add('on');$('#scrim').classList.add('on');}
+function closeDrawer(){$('#drawer').classList.remove('on');$('#scrim').classList.remove('on');}
+window.openDrawer=openDrawer;window.closeDrawer=closeDrawer;
+
+/* ---- small format ---- */
+const pct=n=>n+'%';
+function tone(v,hi=90,mid=75){return v>=hi?'good':v>=mid?'warn':'crit';}
+function pill(txt,t,dot){return `<span class="pill ${t}">${dot?'<span class="dt"></span>':''}${esc(txt)}</span>`;}
+function statusPill(s){const m={'Compliant':'good','Off-Label Refused':'warn','PV Signal':'pv','Competitive Mention':'viol',
+  'Serious':'crit','Non-serious':'warn','Awaiting review':'warn','In review':'info','Approved · Sent':'good',
+  'Positive':'good','Neutral':'neutral','Cautious':'warn','Negative':'crit',
+  'Strong':'good','Developing':'info','Needs work':'crit','Active':'good','Draft':'neutral'};
+  const ic2={'PV Signal':'pv','Off-Label Refused':'shield','Competitive Mention':'flag'};
+  const i=ic2[s]?ic(ic2[s]):'';return `<span class="pill ${m[s]||'neutral'}">${i}${esc(s)}</span>`;}
+window.statusPill=statusPill;window.pill=pill;
+
+/* ---- KPI tile ---- */
+function kpi(o){
+  const d=o.delta;let dh='';
+  if(d!==undefined&&d!==null){const dir=d>0?'up':d<0?'down':'flat';const ar=d>0?'arrowup':d<0?'arrowdown':'route2';
+    dh=`<span class="delta ${dir}">${ic(ar)}${d>0?'+':''}${d}${o.dunit||'%'}</span>`;}
+  const spark=o.spark?sparkline(o.spark,o.sparkTone||'brand'):'';
+  const tgt=o.target!==undefined?`<div class="kpi-target" title="Target ${o.target}${o.dunit||'%'}"><i style="width:${Math.min(100,o.val/(o.max||100)*100)}%"></i><span class="mark" style="left:${o.target/(o.max||100)*100}%"></span></div>`:'';
+  return `<div class="kpi">
+    <div class="kpi-top"><span class="kpi-ic" ${o.iconBg?`style="background:${o.iconBg.bg};color:${o.iconBg.fg}"`:''}>${ic(o.icon||'chart')}</span><span class="kpi-l">${esc(o.label)}</span></div>
+    <div class="kpi-v num">${o.val}${o.unit?`<small>${o.unit}</small>`:''}</div>
+    <div class="kpi-foot">${dh}${o.sub?`<span class="kpi-sub">${esc(o.sub)}</span>`:''}${spark}</div>${tgt}</div>`;
+}
+
+/* ---- sparkline ---- */
+function sparkline(pts,t){const w=68,h=22,mn=Math.min(...pts),mx=Math.max(...pts),rg=(mx-mn)||1;
+  const X=i=>i/(pts.length-1)*w, Y=v=>h-2-((v-mn)/rg)*(h-4);
+  const d=pts.map((v,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1)).join(' ');
+  const col=t==='crit'?'var(--crit)':t==='warn'?'var(--warn)':t==='good'?'var(--good)':'var(--brand-400)';
+  const ar=`spark${Math.random().toString(36).slice(2,7)}`;
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="margin-left:auto"><defs><linearGradient id="${ar}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".22"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+    <path d="${d} L${w} ${h} L0 ${h} Z" fill="url(#${ar})"/><path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${X(pts.length-1)}" cy="${Y(pts[pts.length-1])}" r="2.2" fill="${col}"/></svg>`;
+}
+
+/* ---- line/area chart (multi-series, single y-axis) ---- */
+const CAT=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)'];
+function lineChart(o){
+  const W=o.w||640,H=o.h||220,pl=34,pr=12,pt=12,pb=26;
+  const iw=W-pl-pr, ih=H-pt-pb;
+  const all=o.series.flatMap(s=>s.data);const mx=o.max||Math.ceil(Math.max(...all)/10)*10;const mn=o.min||0;
+  const X=i=>pl+(i/(o.labels.length-1))*iw, Y=v=>pt+ih-((v-mn)/(mx-mn))*ih;
+  let grid='',axis='';for(let g=0;g<=4;g++){const v=mn+(mx-mn)*g/4;const y=Y(v);
+    grid+=`<line class="grid-l" x1="${pl}" y1="${y}" x2="${W-pr}" y2="${y}"/>`;
+    axis+=`<text class="axis-l" x="${pl-6}" y="${y+3}" text-anchor="end">${Math.round(v)}${o.yunit||''}</text>`;}
+  let xl='';o.labels.forEach((l,i)=>{if(o.labels.length>10&&i%2)return;xl+=`<text class="axis-l" x="${X(i)}" y="${H-8}" text-anchor="middle">${esc(l)}</text>`;});
+  let paths='';o.series.forEach((s,si)=>{const c=s.color||CAT[si];
+    const d=s.data.map((v,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1)).join(' ');
+    if(s.area){const ar='la'+si+Math.random().toString(36).slice(2,6);
+      paths+=`<defs><linearGradient id="${ar}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".18"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs><path d="${d} L${X(s.data.length-1)} ${pt+ih} L${pl} ${pt+ih} Z" fill="url(#${ar})"/>`;}
+    paths+=`<path d="${d}" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+    s.data.forEach((v,i)=>{paths+=`<circle cx="${X(i)}" cy="${Y(v)}" r="8" fill="transparent" style="cursor:pointer"
+      onmousemove="showTT(event,'<b>${esc(o.labels[i])}</b><div class=tk><span class=sw style=background:${c}></span>${esc(s.name)}<span class=tv>${v}${o.yunit||''}</span></div>')" onmouseleave="hideTT()"/>`;});
+  });
+  const leg=o.series.length>1?`<div class="legend" style="margin-top:10px">${o.series.map((s,i)=>`<span class="lk"><span class="sw ln" style="background:${s.color||CAT[i]}"></span>${esc(s.name)}</span>`).join('')}</div>`:'';
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${grid}${axis}${xl}${paths}</svg>${leg}`;
+}
+
+/* ---- grouped/stacked bar chart ---- */
+function barChart(o){
+  const W=o.w||640,H=o.h||220,pl=34,pr=12,pt=12,pb=26;const iw=W-pl-pr,ih=H-pt-pb;
+  const stacks=o.data.map(d=>o.series.reduce((a,s)=>a+d[s.key],0));
+  const mx=o.max||Math.ceil(Math.max(...(o.stacked?stacks:o.data.flatMap(d=>o.series.map(s=>d[s.key]))))/10)*10;
+  const Y=v=>pt+ih-(v/mx)*ih;const bw=iw/o.data.length;
+  let grid='',axis='';for(let g=0;g<=4;g++){const v=mx*g/4;const y=Y(v);
+    grid+=`<line class="grid-l" x1="${pl}" y1="${y}" x2="${W-pr}" y2="${y}"/>`;
+    axis+=`<text class="axis-l" x="${pl-6}" y="${y+3}" text-anchor="end">${Math.round(v)}</text>`;}
+  let bars='';o.data.forEach((d,i)=>{const cx=pl+bw*i+bw/2;
+    if(o.stacked){let acc=0;o.series.forEach((s,si)=>{const h=(d[s.key]/mx)*ih;const y=Y(acc)-h;acc+=d[s.key];
+      const w=Math.min(30,bw*.62);
+      bars+=`<rect x="${cx-w/2}" y="${y}" width="${w}" height="${Math.max(0,h-2)}" rx="2" fill="${s.color||CAT[si]}"
+        onmousemove="showTT(event,'<b>${esc(d.label)}</b><div class=tk><span class=sw style=background:${s.color||CAT[si]}></span>${esc(s.name)}<span class=tv>${d[s.key]}</span></div>')" onmouseleave="hideTT()"/>`;});
+    }else{const gw=bw*.64/o.series.length;o.series.forEach((s,si)=>{const h=(d[s.key]/mx)*ih;
+      const x=cx-(bw*.32)+gw*si;
+      bars+=`<rect x="${x}" y="${Y(d[s.key])}" width="${gw-2}" height="${Math.max(0,h)}" rx="2" fill="${s.color||CAT[si]}"
+        onmousemove="showTT(event,'<b>${esc(d.label)}</b><div class=tk><span class=sw style=background:${s.color||CAT[si]}></span>${esc(s.name)}<span class=tv>${d[s.key]}</span></div>')" onmouseleave="hideTT()"/>`;});}
+    bars+=`<text class="axis-l" x="${cx}" y="${H-8}" text-anchor="middle">${esc(d.label)}</text>`;});
+  const leg=`<div class="legend" style="margin-top:10px">${o.series.map((s,i)=>`<span class="lk"><span class="sw" style="background:${s.color||CAT[i]}"></span>${esc(s.name)}</span>`).join('')}</div>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}">${grid}${axis}${bars}</svg>${leg}`;
+}
+
+/* ---- horizontal bars ---- */
+function hbars(rows,o){o=o||{};const mx=o.max||Math.max(...rows.map(r=>r.v));
+  return `<div class="stk" style="gap:9px">`+rows.map(r=>{const w=(r.v/mx)*100;const c=r.color||'var(--brand-400)';
+    return `<div style="display:flex;align-items:center;gap:10px"><div style="width:${o.lw||120}px;flex:0 0 auto;font-size:11.5px;color:var(--ink-2);font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.l)}</div>
+      <div style="flex:1;height:16px;background:var(--panel-3);border-radius:5px;overflow:hidden"><div style="height:100%;width:${w}%;background:${c};border-radius:5px"></div></div>
+      <b class="num" style="width:44px;text-align:right;font-size:11.5px">${r.d||r.v}</b></div>`;}).join('')+`</div>`;
+}
+
+/* ---- donut ---- */
+function donut(segs,o){o=o||{};const r=o.r||54,sw=o.sw||16,cx=r+sw,cy=r+sw,C=2*Math.PI*r;
+  const tot=segs.reduce((a,s)=>a+s.v,0);let off=0;let arcs='';
+  segs.forEach((s,i)=>{const frac=s.v/tot;const len=frac*C;
+    arcs+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color||CAT[i]}" stroke-width="${sw}"
+      stroke-dasharray="${len-2} ${C-len+2}" stroke-dashoffset="${-off}" transform="rotate(-90 ${cx} ${cy})" stroke-linecap="round"
+      onmousemove="showTT(event,'<b>${esc(s.l)}</b><div class=tk><span class=sw style=background:${s.color||CAT[i]}></span>${Math.round(frac*100)}%<span class=tv>${s.v}</span></div>')" onmouseleave="hideTT()"/>`;
+    off+=len;});
+  const size=(r+sw)*2;
+  return `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap"><div style="position:relative;flex:0 0 auto">
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${arcs}</svg>
+    <div style="position:absolute;inset:0;display:grid;place-items:center;text-align:center"><div><div class="donut-center num" style="font-size:22px">${o.center||tot}</div><div style="font-size:10.5px;color:var(--faint)">${o.centerLabel||'total'}</div></div></div></div>
+    <div class="stk" style="gap:7px;flex:1;min-width:120px">${segs.map((s,i)=>`<div style="display:flex;align-items:center;gap:8px;font-size:12px"><span class="sw" style="width:9px;height:9px;border-radius:3px;background:${s.color||CAT[i]}"></span><span style="color:var(--ink-2)">${esc(s.l)}</span><b class="num" style="margin-left:auto;font-variant-numeric:tabular-nums">${s.v}</b></div>`).join('')}</div></div>`;
+}
+
+/* ---- readiness ring ---- */
+function ring(v,o){o=o||{};const size=o.size||64,sw=o.sw||7,r=(size-sw)/2,c=2*Math.PI*r,C=size/2;
+  const col=v>=85?'var(--good)':v>=70?'var(--brand-400)':v>=55?'var(--warn)':'var(--crit)';
+  return `<div class="readi" style="width:${size}px;height:${size}px"><svg width="${size}" height="${size}"><circle cx="${C}" cy="${C}" r="${r}" fill="none" stroke="var(--panel-3)" stroke-width="${sw}"/><circle cx="${C}" cy="${C}" r="${r}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${c*v/100} ${c}" transform="rotate(-90 ${C} ${C})"/></svg><b style="color:${col};font-size:${o.fs||13}px">${v}</b></div>`;
+}
+
+/* ---- data table ---- */
+let SEL={};
+function dtable(id,cols,rows,o){o=o||{};SEL[id]=SEL[id]||new Set();
+  const head=`<tr>${o.select?`<th style="width:36px"><span class="ck ${SEL[id].size===rows.length&&rows.length?'on':''}" onclick="selAll('${id}',${rows.length})">${ic('check')}</span></th>`:''}${cols.map(c=>`<th class="${c.r?'r':''} ${c.sort?'sort':''}" ${c.sort?`onclick="toast('Sorted by ${esc(c.h)}')"`:''}>${esc(c.h)}${c.sort?ic('down'):''}</th>`).join('')}</tr>`;
+  const body=rows.map((row,ri)=>{const on=SEL[id].has(ri);
+    return `<tr class="${on?'sel':''} ${o.rowClick?'rowlink':''}" ${o.rowClick?`onclick="${o.rowClick}(${ri})"`:''}>${o.select?`<td onclick="event.stopPropagation();selRow('${id}',${ri},${rows.length})"><span class="ck ${on?'on':''}">${ic('check')}</span></td>`:''}${cols.map(c=>`<td class="${c.r?'r':''} ${c.cls||''}">${c.render?c.render(row,ri):esc(row[c.k]??'')}</td>`).join('')}</tr>`;}).join('');
+  const bulk=o.select&&o.bulk?`<div class="bulkbar" id="bulk-${id}" style="display:none"><span class="cnt" id="bulkn-${id}">0</span> selected ${o.bulk.map(b=>`<button class="bb" onclick="toast('${esc(b.t)} — applied to selection')">${ic(b.i)}${esc(b.t)}</button>`).join('')}<span class="sp"></span><button class="bb" onclick="clearSel('${id}')">${ic('x')}Clear</button></div>`:'';
+  const foot=o.foot!==false?`<div class="tbl-foot"><span>Showing <b class="num">${rows.length}</b>${o.total?` of <b class="num">${o.total}</b>`:''} ${o.unit||'rows'}</span>${o.footAct||''}<div class="pager"><button>‹</button><button class="on">1</button><button>2</button><button>3</button><button>›</button></div></div>`:'';
+  return `${bulk}<div class="tbl-wrap"><table class="tbl" id="tbl-${id}"><thead>${head}</thead><tbody>${body}</tbody></table></div>${foot}`;
+}
+function selRow(id,ri,n){SEL[id].has(ri)?SEL[id].delete(ri):SEL[id].add(ri);refreshSel(id,n);}
+function selAll(id,n){if(SEL[id].size===n)SEL[id].clear();else for(let i=0;i<n;i++)SEL[id].add(i);refreshSel(id,n);}
+function clearSel(id){SEL[id].clear();refreshSel(id);}
+function refreshSel(id,n){const t=$('#tbl-'+id);if(!t)return;const rows=t.querySelectorAll('tbody tr');
+  rows.forEach((tr,i)=>{const on=SEL[id].has(i);tr.classList.toggle('sel',on);const ck=tr.querySelector('td .ck');if(ck)ck.classList.toggle('on',on);});
+  const hck=t.querySelector('thead .ck');if(hck)hck.classList.toggle('on',SEL[id].size===n&&n);
+  const b=$('#bulk-'+id);if(b){b.style.display=SEL[id].size?'flex':'none';$('#bulkn-'+id).textContent=SEL[id].size;}}
+window.selRow=selRow;window.selAll=selAll;window.clearSel=clearSel;
+
+/* ---- panel + section helpers ---- */
+function panel(o){return `<div class="panel ${o.cls||''}" ${o.span?`style="grid-column:span ${o.span}"`:''}>
+  ${o.title?`<div class="panel-h"><h3>${o.title}</h3>${o.sub?`<span class="sub">${o.sub}</span>`:''}${o.act?`<div class="act">${o.act}</div>`:''}</div>`:''}
+  <div class="panel-b" ${o.pad===false?'style="padding:0"':''}>${o.body}</div></div>`;}
+function phead(o){return `<div class="phead"><div class="phead-t"><h1>${o.title}</h1>${o.sub?`<p>${o.sub}</p>`:''}</div>${o.act?`<div class="phead-act">${o.act}</div>`:''}</div>`;}
+function filterBar(items){return `<div class="filters">${ic('filter')&&`<span style="display:inline-flex;color:var(--faint)">${ic('filter')}</span>`}${items.join('')}</div>`;}
+function fl(label,val,icn){return `<button class="fl-field" onclick="toast('Filter: ${esc(label)}')">${icn?ic(icn):''}${esc(label)} ${val?`<b>${esc(val)}</b>`:''}${ic('down')}</button>`;}
+function chip(txt){return `<span class="chip">${esc(txt)}<button onclick="this.closest('.chip').remove()">${ic('x')}</button></span>`;}
+function state(o){return `<div class="state ${o.err?'err':''}"><div class="state-ic">${ic(o.icon||'empty')}</div><h4>${o.title}</h4><p>${o.msg}</p>${o.act?`<div style="margin-top:4px">${o.act}</div>`:''}</div>`;}
+function exportBtn(){return `<button class="btn" onclick="toast('Export queued — CSV will download')">${ic('export')}Export</button>`;}
+
+/* ============================================================
+   NAVIGATION + ROUTER
+   ============================================================ */
+const NAV=[
+ {grp:'Overview',items:[{id:'ia',ic:'map',t:'Information Architecture'}]},
+ {grp:'Workspace',items:[{id:'dashboard',ic:'dash',t:'Manager Dashboard'},{id:'coaching',ic:'coach',t:'Coaching Review'}]},
+ {grp:'Intelligence',items:[{id:'analytics',ic:'chart',t:'Analytics & Reporting'},{id:'marketing',ic:'mkt',t:'Marketing / Medical'}]},
+ {grp:'Governance',items:[{id:'pv',ic:'pv',t:'Pharmacovigilance',badge:'2'},{id:'compliance',ic:'shield',t:'Compliance & Audit'}]},
+ {grp:'Settings',items:[{id:'config',ic:'cog',t:'Configuration'}]},
+ {grp:'System',items:[{id:'design',ic:'palette',t:'Design System'}]}
+];
+const TITLES={};NAV.forEach(g=>g.items.forEach(i=>TITLES[i.id]={t:i.t,grp:g.grp}));
+function buildNav(active){$('#nav').innerHTML=NAV.map(g=>`<div class="nav-group-t">${g.grp}</div>`+g.items.map(i=>
+  `<div class="nav-item ${i.id===active?'active':''}" onclick="go('${i.id}')" title="${esc(i.t)}">${ic(i.ic)}<span class="nav-label">${esc(i.t)}</span>${i.badge?`<span class="nav-badge ${i.badge==='2'?'':'neutral'}">${i.badge}</span>`:''}</div>`).join('')).join('');}
+
+let CURRENT='dashboard';
+const SCREENS={};
+function go(id){if(!SCREENS[id]){toast('Screen not found');return;}
+  CURRENT=id;buildNav(id);
+  $('#crumbTitle').textContent=TITLES[id].t;$('#crumbGrp').textContent=TITLES[id].grp+' ';$('#crumbGrp').style.color='var(--faint)';
+  $('#crumbGrp').innerHTML=`${esc(TITLES[id].grp)} ${ic('arrowr')} `;
+  const c=$('#content');c.scrollTop=0;
+  c.innerHTML='<div class="page">'+skeletonPage()+'</div>';
+  // simulate async load for realism
+  setTimeout(()=>{c.innerHTML='<div class="page">'+SCREENS[id]()+'</div>';if(window._afterRender&&window._afterRender[id])window._afterRender[id]();},180);
+  if(innerWidth<=840)toggleRail(false);
+}
+window.go=go;
+function skeletonPage(){return `<div class="phead"><div class="phead-t"><div class="skel" style="height:22px;width:240px"></div><div class="skel" style="height:13px;width:360px;margin-top:8px"></div></div></div>
+  <div class="grid g-4" style="margin-bottom:14px">${'<div class="skel" style="height:96px;border-radius:13px"></div>'.repeat(4)}</div>
+  <div class="grid g-2">${'<div class="skel" style="height:240px;border-radius:13px"></div>'.repeat(2)}</div>`;}
+window._afterRender={};
+</script>
+<script id="app-screens-a">
+/* ============================================================
+   SCREEN · INFORMATION ARCHITECTURE (deliverable: IA / nav / flow)
+   ============================================================ */
+SCREENS.ia=function(){
+  const mods=[
+   {ic:'dash',t:'Manager Dashboard',d:'Team activity, coverage, adherence, coaching readiness, CRM completion, team overview.',u:'First-line Manager',c:6},
+   {ic:'chart',t:'Analytics & Reporting',d:'12 scheduled reports, KPI computation, routed intelligence, exports.',u:'All console roles',c:12},
+   {ic:'coach',t:'Coaching Review',d:'Readiness, coaching history, debrief review, trends, pattern detection, role-play insights.',u:'Manager',c:6},
+   {ic:'mkt',t:'Marketing / Medical',d:'Routed field intelligence: material feedback, medical questions, competitive mentions.',u:'Marketing · Med Affairs',c:4},
+   {ic:'pv',t:'Pharmacovigilance',d:'Drafted PV reports, human review, approve-before-send, audit trail, reference IDs.',u:'PV team',c:5},
+   {ic:'shield',t:'Compliance & Audit',d:'AI interaction log, query history, off-label refusals, exports, search & filters.',u:'Compliance / Admin',c:9},
+   {ic:'cog',t:'Configuration',d:'13 per-client config surfaces — catalogue, TAs, materials, tiers, consent, branding.',u:'Admin',c:13}
+  ];
+  const flow=[
+   {s:'Field PWA (rep)',d:'Debrief, in-visit queries, coaching — capture happens here',t:'source'},
+   {s:'Unified knowledge base',d:'MLR-validated · one source feeds every surface',t:'core'},
+   {s:'Routing engine',d:'Segments intelligence by destination team',t:'core'},
+   {s:'Desktop Console',d:'Oversight · analytics · governance · configuration',t:'dest'}
+  ];
+  return phead({title:'Desktop Console — Information Architecture',
+    sub:'The back-office surface of Allys Sales. Dense, data-heavy, and role-scoped — the deliberate opposite of the field PWA. Capture lives on mobile; oversight, analysis, governance and configuration live here.',
+    act:`<button class="btn" onclick="toast('IA map exported')">${ic('export')}Export map</button>`})
+  + `<div class="banner info" style="margin-bottom:18px">${ic('info')}<div class="tx"><b>Surface rule (PRD §2.2).</b> A feature lives on the surface that matches its moment of use. Capture and in-field actions are PWA-first. Oversight, configuration and analysis are desktop-first. Modules such as the audit trail appear on both, shaped differently for each — this console renders the desktop shape.</div></div>`
+  + `<div class="sec-t">Module map · 7 primary modules</div>`
+  + `<div class="grid g-3">`+mods.map(m=>`<div class="panel" style="cursor:pointer" onclick="go('${m.t.includes('Manager')?'dashboard':m.t.includes('Analytics')?'analytics':m.t.includes('Coaching')?'coaching':m.t.includes('Marketing')?'marketing':m.t.includes('Pharma')?'pv':m.t.includes('Compliance')?'compliance':'config'}')">
+     <div class="panel-b" style="display:flex;flex-direction:column;gap:9px">
+       <div style="display:flex;align-items:center;gap:10px"><span class="kpi-ic">${ic(m.ic)}</span><b style="font-size:14px">${m.t}</b><span class="tag" style="margin-left:auto">${m.c} screens</span></div>
+       <p class="mut" style="margin:0;font-size:12px;line-height:1.5">${m.d}</p>
+       <div style="display:flex;align-items:center;gap:6px;margin-top:2px"><span class="fnt" style="font-size:11px">Primary user</span><span class="pill neutral">${m.u}</span></div>
+     </div></div>`).join('')+`</div>`
+  + `<div class="sec-t">Navigation model</div>`
+  + `<div class="grid g-2"><div class="panel"><div class="panel-h"><h3>Persistent left rail — grouped, role-aware</h3></div><div class="panel-b">
+     <div class="def" style="grid-template-columns:150px 1fr;gap:10px 14px">
+      <dt>Overview</dt><dd>Information Architecture</dd>
+      <dt>Workspace</dt><dd>Manager Dashboard · Coaching Review</dd>
+      <dt>Intelligence</dt><dd>Analytics &amp; Reporting · Marketing / Medical</dd>
+      <dt>Governance</dt><dd>Pharmacovigilance · Compliance &amp; Audit</dd>
+      <dt>Settings</dt><dd>Configuration (13 surfaces)</dd>
+      <dt>System</dt><dd>Design System &amp; component library</dd>
+     </div>
+     <hr class="hr"><p class="mut" style="font-size:12px;margin:0">Nav badges surface work that needs a human — PV items awaiting review, escalations. Groups collapse for the four console personas so each role sees a focused surface without hiding the shared governance spine.</p>
+     </div></div>
+     <div class="panel"><div class="panel-h"><h3>Persistent chrome — always visible</h3></div><div class="panel-b">
+      <div class="stk" style="gap:11px">
+       ${[['Compliance indicator','Live posture chip (§4.4) — green when every AI interaction is within approved boundaries; opens the audit trail.'],['Global search','Spans reps, HCPs, audit events and reports. ⌘K.'],['Reporting period','Cycle + week selector scoping every dashboard and report.'],['Tenant switcher','Isolated per client (§4.5); shows jurisdiction and configured languages.'],['Notifications','PV acknowledgements and manager escalations.']].map(x=>`<div style="display:flex;gap:11px"><span class="pill solid" style="align-self:flex-start">${esc(x[0])}</span><span class="mut" style="font-size:12px">${x[1]}</span></div>`).join('')}
+      </div></div></div></div>`
+  + `<div class="sec-t">Screen flow · from field capture to console oversight</div>`
+  + `<div class="panel"><div class="panel-b"><div style="display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:6px 0">`
+    +flow.map((f,i)=>`<div style="flex:1;min-width:190px;display:flex;align-items:center;gap:0">
+       <div style="flex:1;border:1px solid ${f.t==='core'?'var(--brand-tint-2)':'var(--line)'};background:${f.t==='core'?'var(--brand-tint)':'var(--panel-2)'};border-radius:11px;padding:13px 14px">
+         <div style="font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:${f.t==='source'?'var(--info)':f.t==='dest'?'var(--brand)':'var(--brand-500)'}">${f.t==='source'?'Capture':f.t==='dest'?'This console':'Platform'}</div>
+         <b style="display:block;margin:4px 0 3px;font-size:13px">${f.s}</b><span class="mut" style="font-size:11px">${f.d}</span>
+       </div>${i<flow.length-1?`<span style="flex:0 0 auto;color:var(--brand-400);padding:0 6px">${ic('arrowr')}</span>`:''}</div>`).join('')
+    +`</div><hr class="hr"><p class="flow-note">Post-Call Debrief &amp; CRM Sync (§3.4) is the spine: it produces the visit record that history, tasks, coaching, routing and analytics all consume. Everything on this console is downstream of a confirmed field capture.</p></div></div>`;
+};
+
+/* ============================================================
+   SCREEN · MANAGER DASHBOARD
+   ============================================================ */
+SCREENS.dashboard=function(){
+  const teamCols=[
+   {h:'Representative',k:'n',sort:1,cls:'strong',render:r=>`<div class="cellface"><span class="mini-av">${initials(r.n)}</span><div class="stk"><span class="strong">${esc(r.n)}</span><span class="subtle">${esc(r.terr)}</span></div></div>`},
+   {h:'Coverage',k:'cov',sort:1,render:r=>cbar(r.cov)},
+   {h:'Adherence',k:'adh',sort:1,render:r=>cbar(r.adh)},
+   {h:'CRM',k:'crm',sort:1,render:r=>cbar(r.crm)},
+   {h:'Readiness',k:'ready',sort:1,render:r=>`<div style="display:flex;align-items:center;gap:8px">${ring(r.ready,{size:26,sw:4,fs:0})}<b class="num" style="font-size:12px">${r.ready}</b></div>`},
+   {h:'Visits',k:'visits',r:1,sort:1,render:r=>`<span class="num strong">${r.visits}</span>`},
+   {h:'Open recaps',k:'recaps',r:1,render:r=>r.recaps>5?`<span class="pill crit">${r.recaps} overdue</span>`:r.recaps>0?`<span class="pill warn">${r.recaps}</span>`:`<span class="pill good">${ic('check')}0</span>`},
+   {h:'',k:'',render:r=>`<button class="btn sm ghost" onclick="event.stopPropagation();openRep('${r.id}')">Open ${ic('arrowr')}</button>`}
+  ];
+  return phead({title:'Manager Dashboard',
+    sub:'Team activity for Cycle 4 · Week 3. Coverage, adherence, coaching readiness and CRM completion across 8 representatives in your first line.',
+    act:`${exportBtn()}<button class="btn" onclick="toast('Assign task to rep')">${ic('plus')}Assign task</button><button class="btn primary" onclick="go('coaching')">${ic('coach')}Coaching review</button>`})
+  + filterBar([fl('Territory','All','map'),fl('Tier','A · B · C','target'),fl('Product','All products','pill'),`<span class="fl-sep"></span>`,chip('Cycle 4 · Wk 3'),`<span style="margin-left:auto"></span>`,`<span class="fnt" style="font-size:11px">Updated 09:44 · <button class="link" onclick="toast('Refreshed')">${ic('refresh')}refresh</button></span>`])
+  + `<div class="grid g-6" style="margin-bottom:14px">`
+    +kpi({icon:'route',label:'Coverage',val:82,unit:'%',delta:4,sub:'vs last cycle',target:90,spark:[71,74,72,78,80,79,82],sparkTone:'good'})
+    +kpi({icon:'target',label:'Call adherence',val:80,unit:'%',delta:-2,sub:'to plan',target:85,spark:[86,84,83,81,82,81,80],sparkTone:'warn'})
+    +kpi({icon:'doc',label:'CRM completion',val:84,unit:'%',delta:6,sub:'8–12wk goal ≥90%',target:90,spark:[62,68,71,75,78,81,84],sparkTone:'good'})
+    +kpi({icon:'coach',label:'Coaching readiness',val:73,unit:'%',delta:3,sub:'team median',target:80,spark:[66,68,67,70,71,72,73],sparkTone:'brand'})
+    +kpi({icon:'users',label:'HCPs covered',val:214,delta:9,dunit:'',sub:'of 262 in cycle',target:80,max:100,spark:[150,168,177,190,198,206,214],sparkTone:'good'})
+    +kpi({icon:'clock',label:'Open recaps',val:36,delta:-11,dunit:'',sub:'2 overdue >48h',iconBg:{bg:'var(--warn-bg)',fg:'var(--warn)'},spark:[58,52,49,44,41,39,36],sparkTone:'good'})
+  +`</div>`
+  + `<div class="grid g-3">`
+    +panel({span:2,title:'Team activity — visits & confirmed recaps',sub:'this week',act:`<span class="legend"><span class="lk"><span class="sw" style="background:var(--c1)"></span>Visits</span><span class="lk"><span class="sw" style="background:var(--c4)"></span>Recaps synced</span></span>`,
+      body:barChart({h:210,series:[{name:'Visits',key:'v',color:'var(--c1)'},{name:'Recaps synced',key:'r',color:'var(--c4)'}],
+        data:[{label:'Mon',v:52,r:48},{label:'Tue',v:61,r:57},{label:'Wed',v:58,r:50},{label:'Thu',v:64,r:60},{label:'Fri',v:47,r:44}]})})
+    +panel({title:'Coaching readiness mix',sub:'team',body:donut([{l:'Ready ≥85',v:3,color:'var(--good)'},{l:'On track 70–84',v:3,color:'var(--brand-400)'},{l:'Needs work <70',v:2,color:'var(--warn)'}],{center:'8',centerLabel:'reps'})})
+  +`</div>`
+  + `<div class="grid g-3" style="margin-top:14px">`
+    +panel({span:2,title:'Coverage & adherence by territory',body:hbars([
+      {l:'Sharjah · Central',v:97,d:'97%',color:'var(--good)'},{l:'Dubai · Marina',v:94,d:'94%',color:'var(--good)'},
+      {l:'Dubai · JLT',v:91,d:'91%',color:'var(--good)'},{l:'Al Ain · North',v:88,d:'88%',color:'var(--c1)'},
+      {l:'Abu Dhabi · Khalidiya',v:76,d:'76%',color:'var(--warn)'},{l:'Dubai · Deira',v:69,d:'69%',color:'var(--warn)'},
+      {l:'Sharjah · Industrial',v:63,d:'63%',color:'var(--crit)'}],{lw:150})})
+    +panel({title:'Needs your attention',sub:'3 items',pad:false,body:`<div class="stk" style="padding:6px">
+      ${attnRow('crit','clock','2 recaps overdue >48h','Sami Dabbagh · Karim Nasser','Escalated to you (§3.6)')}
+      ${attnRow('pv','pv','1 PV signal awaiting review','PV-2026-0847 · Neurolet','Serious — SLA 24h')}
+      ${attnRow('warn','coach','2 reps below readiness floor','Sami Dabbagh · Karim Nasser','Suggest 1:1 coaching')}
+      </div><div style="padding:10px 12px;border-top:1px solid var(--line-2)"><button class="link" onclick="go('coaching')">Open coaching review ${ic('arrowr')}</button></div>`})
+  +`</div>`
+  + `<div class="sec-t">Team overview</div>`
+  + panel({pad:false,body:dtable('team',teamCols,REPS,{select:true,rowClick:'openRepIdx',
+      bulk:[{i:'msg',t:'Message'},{i:'plus',t:'Assign task'},{i:'export',t:'Export'}],
+      unit:'representatives',footAct:`<span class="fnt">Median readiness 73% · 2 below floor</span>`})});
+};
+function initials(n){return n.split(' ').map(w=>w[0]).slice(0,2).join('');}
+function cbar(v){const t=tone(v);return `<div class="cellbar"><div class="track"><div class="fill ${t}" style="width:${v}%"></div></div><b>${v}%</b></div>`;}
+function attnRow(tn,icn,t,m,x){return `<div style="display:flex;gap:11px;padding:10px 8px;border-radius:9px;cursor:pointer" onmouseover="this.style.background='var(--panel-2)'" onmouseout="this.style.background=''" onclick="toast('${esc(t)}')">
+  <span class="pill ${tn}" style="width:26px;height:26px;padding:0;border-radius:8px;flex:0 0 auto">${ic(icn)}</span>
+  <div class="stk" style="flex:1"><b style="font-size:12.5px">${esc(t)}</b><span class="subtle">${esc(m)}</span><span class="fnt" style="font-size:10.5px;margin-top:2px">${esc(x)}</span></div>
+  ${ic('arrowr','')}</div>`;}
+function openRepIdx(i){openRep(REPS[i].id);}
+function openRep(id){const r=REPS.find(x=>x.id===id);
+  openDrawer(`<div class="cellface"><span class="mini-av" style="width:30px;height:30px">${initials(r.n)}</span>${esc(r.n)}</div>`,
+   `<div class="stk" style="gap:16px">
+     <div class="grid g-2" style="gap:10px">
+       ${miniStat('Coverage',r.cov+'%',tone(r.cov))}${miniStat('Adherence',r.adh+'%',tone(r.adh))}
+       ${miniStat('CRM completion',r.crm+'%',tone(r.crm))}${miniStat('Readiness',r.ready+'%',tone(r.ready,85,70))}</div>
+     <div><div class="sec-t" style="margin:0 0 8px">Territory</div><div class="def"><dt>Region</dt><dd>${esc(r.terr)}</dd><dt>Visits · cycle</dt><dd class="num">${r.visits}</dd><dt>Open recaps</dt><dd>${r.recaps>5?pill(r.recaps+' overdue','crit'):r.recaps+' pending'}</dd></div></div>
+     <div><div class="sec-t" style="margin:0 0 8px">Readiness trend</div>${lineChart({h:150,labels:['W1','W2','W3','W4','W5','W6','W7'],series:[{name:'Readiness',data:[r.ready-10,r.ready-8,r.ready-9,r.ready-5,r.ready-3,r.ready-2,r.ready],color:'var(--brand-400)',area:true}],yunit:'%',max:100})}</div>
+     <div class="banner ${r.flag==='coach'?'warn':'info'}">${ic(r.flag==='coach'?'coach':'info')}<div class="tx">${r.flag==='coach'?'Below readiness floor — a targeted refresher and role-play scenario are suggested from recent debrief signals.':'Performing to plan. Readiness signal shown as a coaching signal, not a performance score (§3.5).'}</div></div>
+   </div>`,
+   `<button class="btn" onclick="closeDrawer()">Close</button><button class="btn" onclick="toast('Task assigned')">${ic('plus')}Assign task</button><button class="btn primary" onclick="closeDrawer();go('coaching')">${ic('coach')}Coaching detail</button>`);}
+function miniStat(l,v,t){return `<div class="panel" style="box-shadow:none"><div class="panel-b" style="padding:11px 12px"><div class="kpi-l">${l}</div><div class="kpi-v num" style="font-size:22px;margin-top:4px">${v}</div><div style="margin-top:6px"><span class="pill ${t}"><span class="dt"></span>${t==='good'?'On target':t==='warn'?'Watch':'Below floor'}</span></div></div></div>`;}
+window.openRep=openRep;window.openRepIdx=openRepIdx;
+
+/* ============================================================
+   SCREEN · ANALYTICS & REPORTING
+   ============================================================ */
+let ANALYTICS_VIEW='library';
+SCREENS.analytics=function(){
+  return ANALYTICS_VIEW==='detail'?analyticsDetail():analyticsLibrary();
+};
+function analyticsLibrary(){
+  const cols=[
+   {h:'Report',k:'n',sort:1,cls:'strong',render:r=>`<div class="cellface"><span class="mini-av" style="border-radius:7px;background:var(--brand-tint);color:var(--brand);border-color:var(--brand-tint-2)">${ic(r.ic)}</span><div class="stk"><span class="strong">${esc(r.n)}</span><span class="subtle">${esc(r.cat)}</span></div></div>`},
+   {h:'Cadence',k:'cad',render:r=>`<span class="mut">${esc(r.cad)}</span>`},
+   {h:'Recipients',k:'rec',render:r=>`<span class="mut">${esc(r.rec)}</span>`},
+   {h:'Format',k:'fmt',render:r=>r.fmt.split(' · ').map(f=>`<span class="tag" style="margin-right:3px">${f}</span>`).join('')},
+   {h:'Last run',k:'last',render:r=>`<span class="pill good"><span class="dt"></span>${esc(r.last)}</span>`},
+   {h:'',k:'',render:r=>`<div style="display:flex;gap:5px;justify-content:flex-end"><button class="btn sm ghost" onclick="event.stopPropagation();toast('${esc(r.n)} exported')">${ic('download')}</button><button class="btn sm" onclick="event.stopPropagation();openReport()">Open ${ic('arrowr')}</button></div>`}
+  ];
+  const cats=[...new Set(REPORTS.map(r=>r.cat))];
+  return phead({title:'Analytics & Reporting',
+    sub:'Automated, scheduled reports with configurable recipients and cadence. Sales-force KPIs compute automatically; routed intelligence reaches the right team; every report and the full audit trail export.',
+    act:`<button class="btn" onclick="go('config')">${ic('cog')}Report settings</button>${exportBtn()}<button class="btn primary" onclick="toast('New scheduled report')">${ic('plus')}New report</button>`})
+  + `<div class="grid g-4" style="margin-bottom:14px">`
+    +kpi({icon:'chart',label:'Reports scheduled',val:12,delta:0,dunit:'',sub:'all delivering on cadence',iconBg:{bg:'var(--brand-tint)',fg:'var(--brand)'}})
+    +kpi({icon:'route',label:'Call efficiency',val:6.4,unit:' /day',delta:5,sub:'visits per active day',spark:[5.8,6,5.9,6.1,6.2,6.3,6.4]})
+    +kpi({icon:'refresh',label:'Time-to-CRM',val:'0.4',unit:' d',delta:-38,sub:'same-day for most visits',iconBg:{bg:'var(--good-bg)',fg:'var(--good)'}})
+    +kpi({icon:'grid',label:'Weekly active reps',val:88,unit:'%',delta:6,sub:'adoption · goal ≥80%',target:80,spark:[70,74,78,80,83,86,88],sparkTone:'good'})
+  +`</div>`
+  + `<div class="grid g-3">`
+    +panel({span:2,title:'Commercial performance — visits vs confirmed CRM writes',sub:'12-week trend',
+      body:lineChart({h:220,labels:['W1','W2','W3','W4','W5','W6','W7','W8','W9','W10','W11','W12'],
+        series:[{name:'Visits',data:[240,255,248,262,270,258,275,268,280,272,285,291],color:'var(--c1)',area:true},
+                {name:'CRM writes confirmed',data:[150,168,172,180,198,206,214,220,235,242,258,268],color:'var(--c4)'}],max:320})})
+    +panel({title:'Routed intelligence',sub:'this cycle',body:donut([{l:'Marketing',v:48,color:'var(--c1)'},{l:'Medical Affairs',v:27,color:'var(--c2)'},{l:'Competitive Intel',v:31,color:'var(--c3)'},{l:'PV team',v:9,color:'var(--pv)'}],{center:'115',centerLabel:'routed'})
+      +`<hr class="hr"><p class="mut" style="font-size:11.5px;margin:0">Segmented by destination (§3.8). Each stream feeds its own scheduled report and reaches the configured recipients.</p>`})
+  +`</div>`
+  + `<div class="sec-t">Report library</div>`
+  + filterBar([fl('Category','All','folder'),...cats.slice(0,3).map(()=>''),fl('Owner','All','users'),fl('Format','All','doc'),`<span style="margin-left:auto"></span>`,`<button class="fl-field" onclick="toast('Bulk export — 12 reports')">${ic('export')}Export all</button>`])
+  + panel({pad:false,body:dtable('reports',cols,REPORTS,{select:true,rowClick:'openReportIdx',
+      bulk:[{i:'download',t:'Run & export'},{i:'mail',t:'Send now'},{i:'clock',t:'Reschedule'}],unit:'reports'})});
+}
+function openReportIdx(){openReport();}
+function openReport(){ANALYTICS_VIEW='detail';go('analytics');}
+window.openReportIdx=openReportIdx;window.openReport=openReport;
+function analyticsDetail(){
+  const cols=[
+   {h:'Representative',k:'n',cls:'strong',render:r=>`<div class="cellface"><span class="mini-av">${initials(r.n)}</span>${esc(r.n)}</div>`},
+   {h:'Visits',k:'visits',r:1,render:r=>`<span class="num strong">${r.visits}</span>`},
+   {h:'Coverage',k:'cov',r:1,render:r=>`<span class="num">${r.cov}%</span>`},
+   {h:'Adherence',k:'adh',r:1,render:r=>`<span class="num">${r.adh}%</span>`},
+   {h:'CRM',k:'crm',r:1,render:r=>`<span class="num">${r.crm}%</span>`},
+   {h:'Efficiency',k:'',r:1,render:r=>`<span class="num">${(r.visits/22).toFixed(1)}/d</span>`},
+   {h:'Trend',k:'',render:r=>sparkline([r.cov-8,r.cov-5,r.cov-6,r.cov-2,r.cov],tone(r.cov))}
+  ];
+  return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><button class="btn sm ghost" onclick="ANALYTICS_VIEW='library';go('analytics')">${ic('arrowr','')}<span style="transform:rotate(180deg);display:inline-flex">${ic('arrowr')}</span>Report library</button></div>`
+  + phead({title:'Sales Weekly Activity',
+     sub:'Auto-generated every Monday 07:00 · delivered to Managers &amp; RSD · Cycle 4, Week 3 (15–21 Jul 2026).',
+     act:`<button class="btn" onclick="toast('Recipients: 6 managers, 1 RSD')">${ic('users')}Recipients</button><button class="btn" onclick="toast('Report scheduled')">${ic('clock')}Schedule</button><button class="btn primary" onclick="toast('Exported — PDF + CSV')">${ic('download')}Export</button>`})
+  + `<div class="grid g-4" style="margin-bottom:14px">`
+    +kpi({icon:'route',label:'Total visits',val:291,delta:5,dunit:'',sub:'across 8 reps'})
+    +kpi({icon:'target',label:'Plan adherence',val:80,unit:'%',delta:-2,target:85})
+    +kpi({icon:'users',label:'Unique HCPs',val:214,delta:9,dunit:'',sub:'of 262 in cycle'})
+    +kpi({icon:'doc',label:'CRM completion',val:84,unit:'%',delta:6,target:90,sparkTone:'good'})
+  +`</div>`
+  + `<div class="grid g-2">`
+    +panel({title:'Daily visits — planned vs completed',body:barChart({h:210,series:[{name:'Planned',key:'p',color:'var(--c5)'},{name:'Completed',key:'c',color:'var(--c1)'}],
+      data:[{label:'Mon',p:58,c:52},{label:'Tue',p:62,c:61},{label:'Wed',p:60,c:58},{label:'Thu',p:66,c:64},{label:'Fri',p:54,c:47}]})})
+    +panel({title:'Coverage by product',body:hbars(PRODUCTS.filter(p=>p.cov>0).map((p,i)=>({l:p.n,v:p.cov,d:p.cov+'%',color:CAT[i]})),{lw:110})})
+  +`</div>`
+  + `<div class="sec-t">Per-representative breakdown</div>`
+  + panel({pad:false,body:dtable('swk',cols,REPS,{unit:'representatives',footAct:`<span class="fnt">Auto-computed KPIs · §3.8</span>`})})
+  + `<div class="banner info" style="margin-top:14px">${ic('info')}<div class="tx"><b>Outcome correlation is roadmap-gated.</b> Tying visit activity to prescribing / sales outcomes depends on client data access (PRD §7.3) and is shown here as a locked panel until the data feed is configured.</div></div>`;
+}
+</script>
+<script id="app-screens-b">
+/* ============================================================
+   SCREEN · COACHING REVIEW
+   ============================================================ */
+SCREENS.coaching=function(){
+  const cols=[
+   {h:'Representative',k:'rep',cls:'strong',render:r=>`<div class="cellface"><span class="mini-av">${initials(r.rep)}</span><div class="stk"><span class="strong">${esc(r.rep)}</span><span class="subtle">${r.sessions} sessions · ${esc(r.when)}</span></div></div>`},
+   {h:'Focus area',k:'topic',render:r=>esc(r.topic)},
+   {h:'Rating',k:'score',render:r=>statusPill(r.score)},
+   {h:'Trend',k:'trend',render:r=>`<div style="display:flex;align-items:center;gap:8px">${sparkline(r.trend>0?[52,55,54,60,62,r.score==='Strong'?78:68]:[70,66,64,62,60,55],r.trend>0?'good':'crit')}<span class="delta ${r.trend>0?'up':'down'}">${ic(r.trend>0?'arrowup':'arrowdown')}${r.trend>0?'+':''}${r.trend}</span></div>`},
+   {h:'Last signal',k:'last',render:r=>`<span class="tag">${r.last==='role-play'?ic('play'):r.last==='debrief flag'?ic('flag'):ic('users')}${esc(r.last)}</span>`},
+   {h:'',k:'',render:r=>`<button class="btn sm" onclick="event.stopPropagation();openCoach('${esc(r.rep)}')">Review ${ic('arrowr')}</button>`}
+  ];
+  return phead({title:'Coaching Review',
+    sub:'Review rep debriefs and readiness over time, spot patterns, and prepare 1:1s. Readiness is a coaching signal, never a performance score — rate, don’t score (PRD §3.5).',
+    act:`<button class="btn" onclick="toast('Pattern detection re-run across debriefs')">${ic('refresh')}Re-run detection</button><button class="btn primary" onclick="toast('1:1 prepared with talking points')">${ic('coach')}Prepare 1:1</button>`})
+  + `<div class="grid g-4" style="margin-bottom:14px">`
+    +kpi({icon:'coach',label:'Team readiness',val:73,unit:'%',delta:3,target:80,sub:'median · encouraging, not punitive',spark:[66,68,67,70,71,72,73],sparkTone:'brand'})
+    +kpi({icon:'play',label:'Role-plays this cycle',val:47,delta:18,dunit:'',sub:'against real HCP profiles'})
+    +kpi({icon:'star',label:'Rated improvement',val:'+11',unit:' pts',delta:4,dunit:' pts',sub:'avg per-rep, quarter',iconBg:{bg:'var(--good-bg)',fg:'var(--good)'}})
+    +kpi({icon:'alert',label:'Patterns detected',val:5,delta:2,dunit:'',sub:'recurring weak spots',iconBg:{bg:'var(--warn-bg)',fg:'var(--warn)'}})
+  +`</div>`
+  + `<div class="grid g-3">`
+    +panel({span:2,title:'Readiness trend by product focus',sub:'spaced-repetition coverage',
+      body:lineChart({h:210,labels:['W1','W2','W3','W4','W5','W6','W7','W8'],
+        series:[{name:'Cardovyn XR',data:[70,72,74,73,76,78,80,82],color:'var(--c1)'},
+                {name:'Neurolet',data:[58,60,59,62,64,63,66,68],color:'var(--c2)'},
+                {name:'Dermavia',data:[54,52,55,53,50,54,56,58],color:'var(--c3)'},
+                {name:'Pulmoease',data:[62,64,63,66,68,67,70,71],color:'var(--c4)'}],max:100,yunit:'%'})})
+    +panel({title:'Pattern detection',sub:'auto-surfaced',pad:false,body:`<div class="stk" style="padding:8px">
+      ${patRow('Pricing objection — Dermavia','Handled poorly in 4 of 6 debriefs across 3 reps','crit','3 reps')}
+      ${patRow('Dosing accuracy — Neurolet','Hesitation on renal adjustment questions','warn','2 reps')}
+      ${patRow('Competitive framing — Spiriva','Weak counter to once-daily convenience claim','warn','4 reps')}
+      ${patRow('CRM completeness habit','Recaps deferred >24h, reconstructed from memory','info','2 reps')}
+    </div><div style="padding:9px 12px;border-top:1px solid var(--line-2)"><span class="fnt" style="font-size:11px">Detected from debriefs + in-visit queries → suggests a refresher or role-play scenario (§3.5).</span></div>`})
+  +`</div>`
+  + `<div class="grid g-3" style="margin-top:14px">`
+    +panel({title:'Role-play insights',sub:'last 30 days',body:`<div class="grid g-2" style="gap:10px">
+       ${rpStat('Sessions run',47)}${rpStat('Avg duration','4.2m')}${rpStat('Voice / text','61 / 39%')}${rpStat('Ended with feedback','100%')}</div>
+       <hr class="hr"><div class="sec-t" style="margin:0 0 8px">Most-rehearsed HCP profiles</div>${hbars([{l:'Dr. Al-Rashid (A)',v:14},{l:'Dr. Qureshi (A)',v:11},{l:'Dr. Al-Nuaimi (B)',v:8},{l:'Dr. Barakat (B)',v:6}],{lw:130})}`})
+    +panel({span:2,title:'Debrief review — recent',sub:'read-only, locked after finalization',pad:false,body:`<div class="tl" style="padding:16px 18px 8px">
+      ${dbItem('good','Layla Mansour · Dr. Al-Rashid','Cardovyn XR','Strong open, handled the ACE-inhibitor interaction question cleanly. Commitment: trial in 2 patients.','2h ago')}
+      ${dbItem('warn','Karim Nasser · Dr. Barakat','Dermavia','Struggled on pricing objection; deflected rather than reframing value. → refresher suggested.','5h ago')}
+      ${dbItem('pv','Omar Farouk · Dr. Qureshi','Neurolet','Captured an adverse-event mention → PV signal drafted (PV-2026-0847). Coaching flag: probe severity earlier.','Today 09:37')}
+    </div>`})
+  +`</div>`
+  + `<div class="sec-t">Coaching history &amp; readiness by rep</div>`
+  + filterBar([fl('Rating','All','star'),fl('Product','All','pill'),fl('Signal type','All','flag'),`<span style="margin-left:auto"></span>`,exportBtn()])
+  + panel({pad:false,body:dtable('coach',cols,COACH,{unit:'reps in review'})});
+};
+function patRow(t,d,tn,cnt){return `<div style="display:flex;gap:11px;padding:10px 8px;border-radius:9px;cursor:pointer" onmouseover="this.style.background='var(--panel-2)'" onmouseout="this.style.background=''" onclick="toast('Build role-play scenario: ${esc(t)}')">
+  <span class="pill ${tn}" style="width:26px;height:26px;padding:0;border-radius:8px;flex:0 0 auto">${ic('alert')}</span>
+  <div class="stk" style="flex:1"><div style="display:flex;gap:8px;align-items:center"><b style="font-size:12.5px">${esc(t)}</b><span class="pill neutral" style="margin-left:auto">${cnt}</span></div><span class="subtle">${esc(d)}</span></div></div>`;}
+function rpStat(l,v){return `<div style="border:1px solid var(--line-2);border-radius:9px;padding:10px 12px;background:var(--panel-2)"><div class="kpi-l">${l}</div><div class="kpi-v num" style="font-size:20px;margin-top:3px">${v}</div></div>`;}
+function dbItem(t,who,prod,txt,when){return `<div class="tl-item"><span class="tl-dot ${t}"></span><div style="display:flex;gap:8px;align-items:baseline"><span class="tl-t">${esc(who)}</span><span class="tag">${esc(prod)}</span><span class="tl-m" style="margin-left:auto">${esc(when)}</span></div><div class="tl-x">${esc(txt)}</div></div>`;}
+function openCoach(rep){const c=COACH.find(x=>x.rep===rep);
+  openDrawer(`Coaching · ${esc(rep)}`,`<div class="stk" style="gap:16px">
+    <div style="display:flex;align-items:center;gap:16px">${ring(c.score==='Strong'?82:c.score==='Developing'?66:50,{size:72,sw:8,fs:15})}
+      <div class="stk"><div style="display:flex;gap:8px;align-items:center">${statusPill(c.score)}<span class="delta ${c.trend>0?'up':'down'}">${ic(c.trend>0?'arrowup':'arrowdown')}${c.trend>0?'+':''}${c.trend}</span></div><span class="mut" style="font-size:12px">${c.sessions} sessions · focus: ${esc(c.topic)}</span></div></div>
+    <div><div class="sec-t" style="margin:0 0 8px">Readiness over 8 weeks</div>${lineChart({h:150,labels:['W1','W2','W3','W4','W5','W6','W7','W8'],series:[{name:'Readiness',data:c.trend>0?[52,55,54,60,62,64,66,c.score==='Strong'?82:68]:[70,66,68,64,62,60,58,55],color:'var(--brand-400)',area:true}],max:100,yunit:'%'})}</div>
+    <div><div class="sec-t" style="margin:0 0 8px">Suggested next step</div><div class="banner ${c.score==='Needs work'?'warn':'info'}">${ic('coach')}<div class="tx">${c.score==='Needs work'?'Assign a role-play against a real HCP profile built around this weak spot, plus the linked micro-training module. Rate directionally — no grades.':'On an upward trend. Keep spaced-repetition light on mastered topics; reinforce with an occasional impromptu question.'}</div></div></div>
+   </div>`,
+   `<button class="btn" onclick="closeDrawer()">Close</button><button class="btn" onclick="toast('Refresher assigned')">${ic('book')}Assign refresher</button><button class="btn primary" onclick="toast('1:1 scheduled with talking points')">${ic('coach')}Prepare 1:1</button>`);}
+window.openCoach=openCoach;
+
+/* ============================================================
+   SCREEN · MARKETING / MEDICAL AFFAIRS
+   ============================================================ */
+SCREENS.marketing=function(){
+  const cols=[
+   {h:'Type',k:'typ',render:r=>{const m={'Material':'info','Medical Q':'viol','Competitive':'warn','Event':'good'};return `<span class="pill ${m[r.typ]}">${r.typ==='Competitive'?ic('flag'):r.typ==='Medical Q'?ic('quote'):r.typ==='Event'?ic('star'):ic('doc')}${esc(r.typ)}</span>`;}},
+   {h:'Signal',k:'txt',cls:'strong',render:r=>`<div class="stk"><span class="strong" style="font-weight:500;white-space:normal;max-width:44ch">${esc(r.txt)}</span><span class="subtle">${esc(r.rep)} · ${esc(r.hcp)}${r.prod!=='—'?' · '+esc(r.prod):''}</span></div>`},
+   {h:'Destination',k:'dest',render:r=>`<span class="tag">${ic('route2')}${esc(r.dest)}</span>`},
+   {h:'Reception',k:'sent',render:r=>statusPill(r.sent)},
+   {h:'When',k:'t',r:1,render:r=>`<span class="subtle">${esc(r.t)}</span>`},
+   {h:'',k:'',render:r=>`<button class="btn sm ghost" onclick="event.stopPropagation();toast('Routed item opened')">Open ${ic('arrowr')}</button>`}
+  ];
+  return phead({title:'Marketing / Medical Affairs',
+    sub:'Routed field intelligence, segmented by destination. Marketing receives material feedback and event agreements; Medical Affairs receives medical questions; the CI desk receives competitor mentions — flagged, not acted on.',
+    act:`<button class="btn" onclick="toast('Filtered to my destination queue')">${ic('filter')}My queue</button>${exportBtn()}`})
+  + `<div class="grid g-4" style="margin-bottom:14px">`
+    +kpi({icon:'doc',label:'Material feedback',val:48,delta:12,dunit:'',sub:'to Marketing',iconBg:{bg:'var(--info-bg)',fg:'var(--info)'}})
+    +kpi({icon:'quote',label:'Medical questions',val:27,delta:4,dunit:'',sub:'to Medical Affairs',iconBg:{bg:'var(--viol-bg)',fg:'var(--viol)'}})
+    +kpi({icon:'flag',label:'Competitive mentions',val:31,delta:9,dunit:'',sub:'to CI desk',iconBg:{bg:'var(--warn-bg)',fg:'var(--warn)'}})
+    +kpi({icon:'star',label:'Event agreements',val:9,delta:3,dunit:'',sub:'symposia · workshops',iconBg:{bg:'var(--good-bg)',fg:'var(--good)'}})
+  +`</div>`
+  + `<div class="grid g-3">`
+    +panel({span:2,title:'Routed intelligence over time',sub:'by destination',body:barChart({h:210,stacked:true,
+      series:[{name:'Marketing',key:'m',color:'var(--c1)'},{name:'Medical Affairs',key:'md',color:'var(--c2)'},{name:'Competitive',key:'ci',color:'var(--c3)'}],
+      data:[{label:'W1',m:9,md:5,ci:6},{label:'W2',m:11,md:6,ci:5},{label:'W3',m:10,md:4,ci:8},{label:'W4',m:12,md:7,ci:7},{label:'W5',m:14,md:8,ci:9}]})})
+    +panel({title:'Material feedback sentiment',body:donut([{l:'Positive',v:29,color:'var(--good)'},{l:'Neutral',v:12,color:'var(--c5)'},{l:'Negative',v:7,color:'var(--crit)'}],{center:'48',centerLabel:'items'})
+      +`<hr class="hr"><div class="sec-t" style="margin:0 0 8px">Top-cited materials</div>${hbars([{l:'MoA animation p.4',v:14,color:'var(--good)'},{l:'HbA1c leave-behind',v:9},{l:'Dosing card',v:7}],{lw:120})}`})
+  +`</div>`
+  + `<div class="sec-t">Competitive intelligence — mentions by competitor</div>`
+  + `<div class="grid g-3">`
+    + panel({body:`<div class="stk" style="gap:14px">${hbars([{l:'Spiriva',v:12,color:'var(--warn)'},{l:'Competitor X',v:9,color:'var(--warn)'},{l:'Biologic Y',v:6,color:'var(--c3)'},{l:'Generic Z',v:4,color:'var(--c3)'}],{lw:110})}</div>`})
+    + panel({span:2,title:'Latest — competitive mentions',pad:false,body:`<div class="stk" style="padding:6px">
+       ${mktRow('Spiriva','Dr. Al-Nuaimi cites once-daily convenience vs Pulmoease','Yasmin Haddad','Cautious')}
+       ${mktRow('Competitor X','Formulary push reported at Cleveland Clinic AD','Tariq Saleh','Cautious')}
+       ${mktRow('Biologic Y','Head-to-head data requested — routed to Med Affairs as off-label','Karim Nasser','Neutral')}
+       </div>`})
+  +`</div>`
+  + `<div class="sec-t">Routed intelligence — full log</div>`
+  + filterBar([fl('Type','All','tag'),fl('Destination','All','route2'),fl('Product','All','pill'),fl('Reception','All','star'),`<span style="margin-left:auto"></span>`,exportBtn()])
+  + panel({pad:false,body:dtable('mkt',cols,MKT,{select:true,bulk:[{i:'send',t:'Forward'},{i:'check',t:'Acknowledge'},{i:'export',t:'Export'}],unit:'routed items'})});
+};
+function mktRow(comp,txt,rep,sent){return `<div style="display:flex;gap:11px;padding:11px 8px;border-radius:9px;cursor:pointer" onmouseover="this.style.background='var(--panel-2)'" onmouseout="this.style.background=''" onclick="toast('Competitive mention: ${esc(comp)}')">
+  <span class="pill viol" style="width:26px;height:26px;padding:0;border-radius:8px;flex:0 0 auto">${ic('flag')}</span>
+  <div class="stk" style="flex:1"><div style="display:flex;gap:8px;align-items:center"><b style="font-size:12.5px">${esc(comp)}</b>${statusPill(sent)}</div><span class="subtle" style="white-space:normal">${esc(txt)}</span><span class="fnt" style="font-size:10.5px">${esc(rep)}</span></div></div>`;}
+
+/* ============================================================
+   SCREEN · PHARMACOVIGILANCE (human-in-the-loop workflow)
+   ============================================================ */
+SCREENS.pv=function(){
+  const cols=[
+   {h:'Reference ID',k:'id',cls:'strong',render:r=>`<span class="mono strong" style="font-size:11.5px">${esc(r.id)}</span>`},
+   {h:'Signal',k:'sig',render:r=>`<div class="stk"><span class="strong" style="font-weight:500;white-space:normal;max-width:34ch">${esc(r.sig)}</span><span class="subtle">${esc(r.prod)} · ${esc(r.hcp)}</span></div>`},
+   {h:'Severity',k:'sev',render:r=>statusPill(r.sev)},
+   {h:'Reported by',k:'rep',render:r=>`<div class="cellface"><span class="mini-av">${initials(r.rep)}</span>${esc(r.rep)}</div>`},
+   {h:'Status',k:'st',render:r=>{const m={'Awaiting review':'warn','In review':'info','Approved · Sent':'good'};return `<span class="pill ${m[r.st]}"><span class="dt"></span>${esc(r.st)}</span>`;}},
+   {h:'Detected',k:'ts',render:r=>`<div class="stk"><span class="subtle">${esc(r.ts)}</span>${r.age!=='—'?`<span class="fnt" style="font-size:10.5px">SLA ${esc(r.age)}</span>`:''}</div>`},
+   {h:'',k:'',render:r=>r.st.startsWith('Approved')?`<button class="btn sm ghost" onclick="event.stopPropagation();openPV('${r.id}')">${ic('eye')}Audit</button>`:`<button class="btn sm primary" onclick="event.stopPropagation();openPV('${r.id}')">Review ${ic('arrowr')}</button>`}
+  ];
+  return phead({title:'Pharmacovigilance',
+    sub:'The highest-risk area, handled with deliberate care. The AI drafts a structured report; a human reviews and explicitly sends; the validated signal routes to the PV team with a full audit trail and reference ID. No PV signal is ever auto-reported.',
+    act:`<button class="btn" onclick="toast('PV summary generated')">${ic('doc')}PV summary</button>${exportBtn()}`})
+  + `<div class="banner pv" style="margin-bottom:16px">${ic('shield')}<div><b>Non-negotiable — flag → draft → human-send → audit.</b> <span class="tx">This sequence is mandatory and visible in the flow (PRD §4.2). The platform never auto-forwards and never accepts a voice “yes” as a send.</span></div></div>`
+  + `<div class="grid g-4" style="margin-bottom:14px">`
+    +kpi({icon:'clock',label:'Awaiting review',val:2,delta:0,dunit:'',sub:'1 serious · SLA 24h',iconBg:{bg:'var(--warn-bg)',fg:'var(--warn)'}})
+    +kpi({icon:'eye',label:'In review',val:1,delta:0,dunit:'',sub:'assigned to you',iconBg:{bg:'var(--info-bg)',fg:'var(--info)'}})
+    +kpi({icon:'checkc',label:'Approved & sent',val:23,delta:5,dunit:'',sub:'this cycle · 100% human-validated',iconBg:{bg:'var(--good-bg)',fg:'var(--good)'}})
+    +kpi({icon:'alert',label:'Median time-to-send',val:'3.1',unit:' h',delta:-12,sub:'detection → validated send',iconBg:{bg:'var(--pv-bg)',fg:'var(--pv)'}})
+  +`</div>`
+  + `<div class="grid g-3">`
+    +panel({span:2,title:'PV signals detected vs validated & sent',sub:'12 weeks',body:lineChart({h:200,labels:['W1','W2','W3','W4','W5','W6','W7','W8','W9','W10','W11','W12'],
+      series:[{name:'Detected',data:[3,4,2,5,3,4,6,3,5,4,3,5],color:'var(--pv)'},{name:'Validated & sent',data:[3,4,2,4,3,4,5,3,5,4,3,3],color:'var(--good)'}],max:8})})
+    +panel({title:'By severity',body:donut([{l:'Serious',v:8,color:'var(--crit)'},{l:'Non-serious',v:15,color:'var(--warn)'}],{center:'23',centerLabel:'validated'})
+      +`<hr class="hr"><div class="def" style="grid-template-columns:1fr auto;font-size:11.5px"><dt>Auto-reported</dt><dd>${pill('0 — never','good')}</dd><dt>Human-validated</dt><dd class="num">100%</dd><dt>With reference ID</dt><dd class="num">100%</dd></div>`})
+  +`</div>`
+  + `<div class="sec-t">Review queue</div>`
+  + filterBar([fl('Severity','All','alert'),fl('Status','Open','clock'),fl('Product','All','pill'),`<span style="margin-left:auto"></span>`,`<span class="fnt" style="font-size:11px">Ordered by SLA urgency</span>`])
+  + panel({pad:false,body:dtable('pv',cols,PV,{rowClick:'openPVIdx',unit:'PV reports'})});
+};
+function openPVIdx(i){openPV(PV[i].id);}
+function openPV(id){const p=PV.find(x=>x.id===id);const sent=p.st.startsWith('Approved');
+  const steps=[['Signal detected','AI flagged adverse-event language in debrief',true],['Report drafted','Structured, full context',true],['Human review',sent?'Completed':'Awaiting your review',sent],['Explicit send',sent?'Sent to PV team':'Pending — deliberate human action',sent],['Routed + audited',sent?'Reference ID issued':'—',sent]];
+  openDrawer(`<span class="mono">${esc(p.id)}</span>`,
+   `<div class="stk" style="gap:16px">
+     <div style="display:flex;gap:8px;flex-wrap:wrap">${statusPill(p.sev)}${statusPill(p.st)}<span class="tag">${esc(p.prod)}</span></div>
+     <div class="banner pv">${ic('quote')}<div class="tx"><b>Detected signal.</b> ${esc(p.sig)}</div></div>
+     <div><div class="sec-t" style="margin:0 0 10px">Human-in-the-loop sequence</div><div class="tl">
+       ${steps.map(s=>`<div class="tl-item"><span class="tl-dot ${s[2]?'good':'warn'}"></span><div style="display:flex;gap:8px;align-items:baseline"><span class="tl-t">${esc(s[0])}</span>${s[2]?`<span class="pill good" style="margin-left:auto">${ic('check')}done</span>`:`<span class="pill warn" style="margin-left:auto">pending</span>`}</div><div class="tl-x">${esc(s[1])}</div></div>`).join('')}
+     </div></div>
+     <div><div class="sec-t" style="margin:0 0 8px">Drafted report — for human review</div>
+       <div class="def"><dt>Patient context</dt><dd>Anonymised · captured in debrief</dd><dt>Product</dt><dd>${esc(p.prod)}</dd><dt>Reaction</dt><dd>${esc(p.sig)}</dd><dt>Severity</dt><dd>${esc(p.sev)}</dd><dt>Reporter</dt><dd>${esc(p.rep)}</dd><dt>Detected</dt><dd>${esc(p.ts)}</dd><dt>Source</dt><dd>Post-call debrief transcript</dd></div>
+     </div>
+     ${sent?`<div class="banner good">${ic('checkc')}<div class="tx"><b>Approved &amp; sent.</b> Routed to the PV team with a full, timestamped audit trail. Reference ID <b class="mono">${esc(p.id)}</b>.</div></div>`:''}
+   </div>`,
+   sent?`<button class="btn" onclick="closeDrawer()">Close</button><button class="btn" onclick="go('compliance');closeDrawer()">${ic('shield')}View in audit trail</button>`
+   :`<button class="btn danger" onclick="toast('Returned to rep for more detail')">${ic('x')}Request detail</button><button class="btn" onclick="closeDrawer()">Cancel</button><button class="btn primary" onclick="toast('Explicitly sent — ${esc(p.id)} routed to PV team with audit trail');closeDrawer()">${ic('send')}Approve &amp; send</button>`);}
+window.openPV=openPV;window.openPVIdx=openPVIdx;
+</script>
+<script id="app-screens-c">
+/* ============================================================
+   SCREEN · COMPLIANCE & AUDIT
+   ============================================================ */
+SCREENS.compliance=function(){
+  const cols=[
+   {h:'Time',k:'t',render:r=>`<span class="mono subtle">${esc(r.t)}</span>`},
+   {h:'Representative',k:'rep',cls:'strong',render:r=>`<div class="cellface"><span class="mini-av">${initials(r.rep)}</span>${esc(r.rep)}</div>`},
+   {h:'HCP',k:'hcp',render:r=>`<span class="mut">${esc(r.hcp)}</span>`},
+   {h:'Product',k:'prod',render:r=>`<span class="tag">${esc(r.prod)}</span>`},
+   {h:'Query',k:'q',render:r=>`<span style="color:var(--ink-2);white-space:normal;max-width:38ch;display:inline-block">${esc(r.q)}</span>`},
+   {h:'Status',k:'st',render:r=>statusPill(r.st)},
+   {h:'Confidence',k:'conf',r:1,render:r=>{const v=Math.round(r.conf*100);const t=v>=90?'good':v>=80?'warn':'crit';return `<div class="cellbar" style="justify-content:flex-end"><div class="track" style="max-width:48px"><div class="fill ${t}" style="width:${v}%"></div></div><b>${v}%</b></div>`;}},
+   {h:'',k:'',render:r=>`<button class="btn sm ghost" onclick="event.stopPropagation();toast('Audit entry detail')">${ic('eye')}</button>`}
+  ];
+  return phead({title:'Compliance & Audit',
+    sub:'Every AI interaction is logged with timestamp, rep, query, product, status and confidence. The trail is searchable, filterable and exportable — the reason a regulated client can put this in the field at all (PRD §4.4).',
+    act:`<button class="btn" onclick="toast('Export log written — who exported what, when')">${ic('doc')}Export log</button><button class="btn primary" onclick="toast('Full audit trail exported to CSV')">${ic('download')}Export audit (CSV)</button>`})
+  + `<div class="grid g-6" style="margin-bottom:14px">`
+    +kpi({icon:'shield',label:'Interactions logged',val:'18.4k',delta:7,sub:'this cycle',iconBg:{bg:'var(--brand-tint)',fg:'var(--brand)'}})
+    +kpi({icon:'checkc',label:'Compliant',val:99.2,unit:'%',delta:0.3,sub:'within boundaries',iconBg:{bg:'var(--good-bg)',fg:'var(--good)'}})
+    +kpi({icon:'shield',label:'Off-label refused',val:112,delta:8,dunit:'',sub:'routed to Med Affairs',iconBg:{bg:'var(--warn-bg)',fg:'var(--warn)'}})
+    +kpi({icon:'flag',label:'Competitive mentions',val:31,delta:9,dunit:'',sub:'flagged, not acted on',iconBg:{bg:'var(--viol-bg)',fg:'var(--viol)'}})
+    +kpi({icon:'pv',label:'PV signals',val:5,delta:2,dunit:'',sub:'100% human-validated',iconBg:{bg:'var(--pv-bg)',fg:'var(--pv)'}})
+    +kpi({icon:'export',label:'Exports (30d)',val:47,delta:0,dunit:'',sub:'all logged',iconBg:{bg:'var(--info-bg)',fg:'var(--info)'}})
+  +`</div>`
+  + `<div class="grid g-3">`
+    +panel({span:2,title:'AI interaction outcomes',sub:'daily',body:barChart({h:200,stacked:true,
+      series:[{name:'Compliant',key:'c',color:'var(--good)'},{name:'Off-label refused',key:'o',color:'var(--warn)'},{name:'Competitive',key:'m',color:'var(--viol)'},{name:'PV signal',key:'p',color:'var(--pv)'}],
+      data:[{label:'Mon',c:520,o:18,m:6,p:1},{label:'Tue',c:610,o:22,m:5,p:1},{label:'Wed',c:580,o:15,m:8,p:0},{label:'Thu',c:640,o:24,m:7,p:2},{label:'Fri',c:470,o:19,m:5,p:1}]})})
+    +panel({title:'Compliance status',body:`<div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:6px 0">${ring(99,{size:96,sw:10,fs:20})}<b style="font-size:12px;color:var(--good);margin-top:2px">Within approved boundaries</b><span class="fnt" style="font-size:11px">Target ≥99% (§8)</span></div>
+      <hr class="hr"><div class="stk" style="gap:8px">
+       <div style="display:flex;align-items:center;gap:8px;font-size:12px"><span class="pill good"><span class="dt"></span></span>MLR-locked content<span class="num" style="margin-left:auto;font-weight:600">Enforced</span></div>
+       <div style="display:flex;align-items:center;gap:8px;font-size:12px"><span class="pill good"><span class="dt"></span></span>Data residency · UAE<span class="num" style="margin-left:auto;font-weight:600">Isolated</span></div>
+       <div style="display:flex;align-items:center;gap:8px;font-size:12px"><span class="pill good"><span class="dt"></span></span>PV human-in-the-loop<span class="num" style="margin-left:auto;font-weight:600">Active</span></div>
+      </div>`})
+  +`</div>`
+  + `<div class="sec-t">AI interaction log — query history</div>`
+  + filterBar([
+      `<div class="search" style="max-width:280px;flex:0 0 auto"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M20 20l-3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input placeholder="Search queries, reps, products…" style="height:30px" onfocus="toast('Full-text search across the audit trail')"></div>`,
+      fl('Status','All','shield'),fl('Rep','All','users'),fl('Product','All','pill'),fl('Date','Cycle 4','clock'),
+      `<span style="margin-left:auto"></span>`,chip('Off-Label Refused'),`<button class="fl-field" onclick="toast('Exported')">${ic('export')}Export</button>`])
+  + panel({pad:false,body:dtable('audit',cols,AUDIT,{select:true,total:18412,
+      bulk:[{i:'export',t:'Export selection'},{i:'flag',t:'Flag for review'}],unit:'entries',
+      footAct:`<span class="fnt">Immutable · corrections as timestamped amendments (§3.7)</span>`})});
+};
+
+/* ============================================================
+   SCREEN · CONFIGURATION (13 per-client surfaces)
+   ============================================================ */
+const CFG_SURFACES=[
+ {grp:'Catalogue',items:[['catalogue','pill','Product catalogue'],['tas','branch','Therapeutic areas'],['materials','book','Approved materials']]},
+ {grp:'Targeting',items:[['tiers','target','Doctor tiers'],['hcp','users','HCP profiles'],['crm','refresh','CRM target']]},
+ {grp:'Engagement',items:[['channels','msg','Messaging channels'],['consent','lock','Consent rules'],['retention','clock','History retention']]},
+ {grp:'Governance',items:[['languages','lang','Languages'],['rules','shield','Compliance rules'],['reports','chart','Reports & recipients']]},
+ {grp:'Brand',items:[['branding','palette','Branding']]}
+];
+let CFG_ACTIVE='catalogue';
+SCREENS.config=function(){
+  const nav=CFG_SURFACES.map(g=>`<div class="grp">${g.grp}</div>`+g.items.map(it=>`<a class="${it[0]===CFG_ACTIVE?'on':''}" onclick="CFG_ACTIVE='${it[0]}';go('config')">${ic(it[1])}${it[2]}</a>`).join('')).join('');
+  return phead({title:'Configuration',
+    sub:'A new pharmaceutical client is brought live by configuring — not rebuilding. 13 per-client surfaces span the product catalogue, targeting, engagement rules, governance and branding.',
+    act:`<span class="pill neutral"><span class="dt"></span>Gulf Pharma · UAE</span><button class="btn" onclick="toast('Changes staged — not yet published')">${ic('doc')}Staged changes (3)</button><button class="btn primary" onclick="toast('Configuration published to tenant')">${ic('check')}Publish</button>`})
+  + `<div class="cfg"><nav class="cfg-nav">${nav}</nav><div style="min-width:0">${cfgPanel(CFG_ACTIVE)}</div></div>`;
+};
+function cfgPanel(id){
+  if(id==='catalogue'){
+    const cols=[
+     {h:'Product',k:'n',cls:'strong',render:r=>`<div class="cellface"><span class="mini-av" style="border-radius:7px;background:var(--brand-tint);color:var(--brand);border-color:var(--brand-tint-2)">${ic('pill')}</span><div class="stk"><span class="strong">${esc(r.n)}</span><span class="subtle mono">${esc(r.sku)}</span></div></div>`},
+     {h:'Therapeutic area',k:'ta',render:r=>`<span class="tag">${ic('branch')}${esc(r.ta)}</span>`},
+     {h:'Indication',k:'ind',render:r=>`<span class="mut">${esc(r.ind)}</span>`},
+     {h:'Approved materials',k:'mat',r:1,render:r=>`<span class="num strong">${r.mat}</span>`},
+     {h:'Status',k:'status',render:r=>statusPill(r.status)},
+     {h:'',k:'',render:r=>`<div style="display:flex;gap:4px;justify-content:flex-end"><button class="btn sm ghost" onclick="event.stopPropagation();toast('Edit ${esc(r.n)}')">${ic('edit')}</button><button class="btn sm ghost" onclick="event.stopPropagation();toast('Manage materials')">${ic('book')}</button></div>`}
+    ];
+    return panel({title:'Product catalogue',sub:`${PRODUCTS.length} products · ${PRODUCTS.filter(p=>p.status==='Active').length} active`,
+      act:`<button class="btn sm" onclick="toast('Import from CSV')">${ic('download')}Import</button><button class="btn sm primary" onclick="toast('Add product')">${ic('plus')}Add product</button>`,pad:false,
+      body:dtable('cat',cols,PRODUCTS,{select:true,bulk:[{i:'tag',t:'Assign TA'},{i:'check',t:'Activate'},{i:'export',t:'Export'}],unit:'products'})});
+  }
+  if(id==='tiers'){
+    return panel({title:'Doctor tiers & frequency',sub:'target visit frequency per tier',body:`
+      <p class="mut" style="margin:0 0 14px;font-size:12px">Tier definitions and target visit frequencies drive weekly planning and coverage KPIs. Applied per cycle.</p>
+      ${[['A','Key influencers · high potential','8','2×/month','var(--good)','A'],['B','Established prescribers','4','1×/month','var(--warn)','B'],['C','Occasional · maintain presence','2','1×/quarter','var(--muted)','C']].map(t=>`
+        <div class="rowedit"><span class="tier ${t[5]}">${t[5]}</span><div class="stk" style="flex:1"><b style="font-size:12.5px">Tier ${t[0]}</b><span class="subtle">${t[1]}</span></div>
+          <div class="field" style="margin:0;width:120px"><label>Target /cycle</label><input type="number" value="${t[2]}"></div>
+          <div class="field" style="margin:0;width:140px"><label>Frequency</label><input type="text" value="${t[3]}"></div>
+          <button class="btn sm ghost" onclick="toast('Tier ${t[0]} saved')">${ic('check')}</button></div>`).join('')}
+      <div class="banner info" style="margin-top:8px">${ic('info')}<div class="tx">Carried-forward doctors missed in prior periods are auto-flagged as priority in the next plan (§3.1).</div></div>`});
+  }
+  if(id==='consent'){
+    return panel({title:'HCP consent & channel rules',sub:'per-market · per-channel',body:`
+      <div class="banner warn" style="margin-bottom:14px">${ic('lock')}<div class="tx"><b>Consent is the messaging guardrail.</b> An HCP is never messaged without consent and on a non-permitted channel. Where an HCP has not opted in, the product does not draft for or send on that channel (§3.4).</div></div>
+      <div class="stk" style="gap:10px">${[['Email','Opt-in required · double opt-in for EU-aligned markets',true],['WhatsApp','Explicit opt-in · business-initiated template rules apply',true],['SMS','Opt-in required · quiet-hours enforced',true],['Voice call','Not enabled for this tenant',false]].map(c=>`
+        <div class="rowedit"><span class="pill ${c[2]?'good':'neutral'}" style="width:26px;height:26px;padding:0;border-radius:8px">${ic('msg')}</span>
+          <div class="stk" style="flex:1"><b style="font-size:12.5px">${c[0]}</b><span class="subtle">${c[1]}</span></div>
+          <div class="toggle ${c[2]?'on':''}" onclick="this.classList.toggle('on');toast('${c[0]} ${c[2]?'':'enabled'}')"><i></i></div></div>`).join('')}</div>`});
+  }
+  if(id==='branding'){
+    return panel({title:'Branding',sub:'client name · colours · product naming',body:`
+      <div class="field"><label>Client / product display name</label><input type="text" value="Gulf Pharma — Allys Field"><span class="hint">Client-facing product names are configurable per deployment.</span></div>
+      <div class="field"><label>Primary accent</label><div class="swatchrow">${['#0B6E75','#1F6FEB','#5B47D6','#B4740B','#1F8A57','#B01E63'].map((c,i)=>`<button class="swatch ${i===0?'on':''}" style="background:${c}" onclick="document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('on'));this.classList.add('on');toast('Accent → ${c}')"></button>`).join('')}</div><span class="hint">Drives the console accent; semantic status colours stay fixed for legibility.</span></div>
+      <div class="field"><label>Logo</label><div class="rowedit" style="margin:0"><div class="rail-logo" style="width:40px;height:40px">${ic('shield')}</div><span class="mut" style="flex:1;font-size:12px">allys-mark.svg · 40×40</span><button class="btn sm" onclick="toast('Upload logo')">${ic('export')}Replace</button></div></div>
+      <div class="field"><label>Default language</label><select><option>English (en)</option><option>Arabic (ar)</option></select></div>`});
+  }
+  if(id==='reports'){
+    const cols=[{h:'Report',k:'n',cls:'strong'},{h:'Cadence',k:'cad',render:r=>`<span class="mut">${esc(r.cad)}</span>`},{h:'Recipients',k:'rec',render:r=>`<span class="mut">${esc(r.rec)}</span>`},{h:'Enabled',k:'',render:()=>`<div class="toggle on" onclick="this.classList.toggle('on')"><i></i></div>`}];
+    return panel({title:'Reports & recipients',sub:'which reports · what cadence · who receives them',act:`<button class="btn sm primary" onclick="toast('Schedule report')">${ic('plus')}Schedule</button>`,pad:false,body:dtable('cfgrep',cols,REPORTS,{unit:'reports'})});
+  }
+  if(id==='languages'){
+    return panel({title:'Languages',sub:'field languages incl. code-switching',body:`
+      <p class="mut" style="margin:0 0 14px;font-size:12px">Voice capture, the knowledge base and generated content handle the configured languages natively — including English/Arabic code-switching mid-sentence (§6.1).</p>
+      <div class="stk" style="gap:9px">${[['English','en · Latin',true],['Arabic','ar · RTL · code-switching',true],['French','fr','false']].map(l=>`<div class="rowedit"><span class="pill ${l[2]===true?'good':'neutral'}" style="width:26px;height:26px;padding:0;border-radius:8px">${ic('lang')}</span><div class="stk" style="flex:1"><b style="font-size:12.5px">${l[0]}</b><span class="subtle">${l[1]}</span></div><div class="toggle ${l[2]===true?'on':''}" onclick="this.classList.toggle('on')"><i></i></div></div>`).join('')}</div>`});
+  }
+  if(id==='rules'){
+    return panel({title:'Compliance rules',sub:'PV routing · off-label boundaries · disclaimers · jurisdiction',body:`
+      <div class="field"><label>Data residency / jurisdiction</label><select><option>United Arab Emirates (UAE)</option><option>Saudi Arabia (KSA)</option><option>European Union (EU)</option></select><span class="hint">Client data stays in-jurisdiction and does not leave it (§4.5).</span></div>
+      <div class="field"><label>PV routing destination</label><input type="text" value="pv-intake@gulfpharma.example · ref-ID auto-issued"></div>
+      <div class="field"><label>Off-label boundary</label><div class="rowedit" style="margin:0"><div class="stk" style="flex:1"><b style="font-size:12.5px">Refuse &amp; route to Medical Affairs</b><span class="subtle">Comparative &amp; off-label questions logged and routed</span></div><div class="toggle on"><i></i></div></div></div>
+      <div class="field"><label>Required disclaimer language</label><textarea rows="3">This communication contains information for healthcare professionals only. Refer to the approved prescribing information. Report adverse events to your local pharmacovigilance contact.</textarea><span class="hint">Auto-appended to every generated follow-up (§4.1).</span></div>`});
+  }
+  if(id==='retention'){
+    return panel({title:'History retention & access',sub:'how long finalized visit history persists · who sees whose HCPs',body:`
+      <div class="field"><label>Finalized visit retention</label><select><option>36 months</option><option>24 months</option><option>60 months</option></select><span class="hint">Configurable per client and market (§3.7).</span></div>
+      <div class="field"><label>Access scope</label><div class="stk" style="gap:9px">${[['Rep sees own HCPs',true],['Manager sees team',true],['Cross-territory access',false],['Inherit history on handover',true]].map(a=>`<div class="rowedit" style="margin:0"><span class="mut" style="flex:1;font-size:12.5px">${a[0]}</span><div class="toggle ${a[1]?'on':''}" onclick="this.classList.toggle('on')"><i></i></div></div>`).join('')}</div></div>
+      <div class="banner info">${ic('lock')}<div class="tx">Records lock after finalization; corrections are visible, timestamped amendments — never overwrites.</div></div>`});
+  }
+  // generic surfaces (materials, tas, hcp, crm, channels)
+  const generic={
+    materials:['Approved materials','MLR-validated knowledge base · visual aids · studies · disclaimers','book','41 approved assets · 3 pending MLR'],
+    tas:['Therapeutic areas','Relevant TAs and indications','branch','5 areas · 12 indications'],
+    hcp:['HCP profiles','Real doctor profiles for role-play & prep','users','262 profiles · objections, history, competitors'],
+    crm:['CRM target & mode','Veeva / OCE / other · API or copy-paste fallback','refresh','Veeva CRM · API (validated)'],
+    channels:['Messaging channels','Which HCP follow-up channels are enabled','msg','Email · WhatsApp · SMS enabled']
+  }[id];
+  if(id==='materials'){
+    const mats=[['MoA animation — Cardovyn','Visual aid','Approved','p.4'],['HbA1c 24-week leave-behind','Leave-behind','Approved','—'],['Renal safety study summary','Study','Approved','—'],['Dermavia patient card','Leave-behind','Pending MLR','—'],['Pulmoease dosing guide','Visual aid','Approved','p.2']];
+    const cols=[{h:'Asset',k:0,cls:'strong',render:r=>`<div class="cellface"><span class="mini-av" style="border-radius:7px">${ic('book')}</span>${esc(r[0])}</div>`},{h:'Type',k:1,render:r=>`<span class="tag">${esc(r[1])}</span>`},{h:'MLR status',k:2,render:r=>statusPill(r[2]==='Approved'?'Active':'Draft')},{h:'Ref',k:3,render:r=>`<span class="mono subtle">${esc(r[3])}</span>`},{h:'',k:'',render:()=>`<button class="btn sm ghost" onclick="event.stopPropagation();toast('Preview asset')">${ic('eye')}</button>`}];
+    return panel({title:generic[0],sub:generic[3],act:`<button class="btn sm primary" onclick="toast('Upload for MLR')">${ic('plus')}Upload</button>`,pad:false,body:dtable('mats',cols,mats,{select:true,bulk:[{i:'check',t:'Approve'},{i:'export',t:'Export'}],unit:'assets'})});
+  }
+  return panel({title:generic[0],sub:generic[3],act:`<button class="btn sm primary" onclick="toast('Add ${generic[0]}')">${ic('plus')}Add</button>`,
+    body:`<div class="banner info" style="margin-bottom:14px">${ic(generic[2])}<div class="tx">${generic[1]}.</div></div>`
+      +(id==='hcp'?panel({cls:'',body:hbars([{l:'Tier A',v:38,color:'var(--good)'},{l:'Tier B',v:104,color:'var(--warn)'},{l:'Tier C',v:120,color:'var(--muted)'}],{lw:80})}).replace('class="panel ','class="panel" style="box-shadow:none" data-x="'):'')
+      +`<div class="def" style="grid-template-columns:180px 1fr;gap:10px 16px;margin-top:6px">
+        ${id==='tas'?'<dt>Cardiology</dt><dd>Hypertension · Heart failure</dd><dt>Neurology</dt><dd>Focal seizures</dd><dt>Dermatology</dt><dd>Plaque psoriasis</dd><dt>Respiratory</dt><dd>COPD maintenance</dd><dt>Endocrinology</dt><dd>Type 2 diabetes</dd>':''}
+        ${id==='crm'?'<dt>System</dt><dd>Veeva CRM</dd><dt>Mode</dt><dd>API (write-back) · validated</dd><dt>Fallback</dt><dd>Guided copy-to-CRM / export</dd><dt>Confirmation</dt><dd>Every write requires explicit rep confirmation (§3.4)</dd>':''}
+        ${id==='channels'?'<dt>Email</dt><dd>Enabled · templated follow-ups</dd><dt>WhatsApp</dt><dd>Enabled · business templates</dd><dt>SMS</dt><dd>Enabled · quiet-hours enforced</dd><dt>Auto-send</dt><dd>Never — rep is always sender of record</dd>':''}
+        ${id==='hcp'?'<dt>Total profiles</dt><dd>262</dd><dt>With objection history</dt><dd>241</dd><dt>Role-play ready</dt><dd>229</dd><dt>Competitor mapped</dt><dd>198</dd>':''}
+      </div>`});
+}
+
+/* ============================================================
+   SCREEN · DESIGN SYSTEM  (+ empty / error / loading states)
+   ============================================================ */
+SCREENS.design=function(){
+  const swatches=[['Brand / accent',[['--brand','#0B6E75','Primary'],['--brand-500','#12909A','Interactive'],['--brand-400','#1FA9B4','Bright'],['--brand-tint','#E4F1F2','Tint']]],
+    ['Neutrals (blue-biased slate)',[['--ink','#101822','Ink'],['--muted','#5C6C7C','Muted'],['--line','#E2E8EC','Line'],['--bg','#F4F6F8','Ground']]],
+    ['Status (reserved)',[['--good','#1F8A57','Compliant'],['--warn','#B4740B','Off-label'],['--crit','#C43B33','Critical'],['--info','#2C64C9','Info']]],
+    ['Governance & data-viz',[['--viol','#6C4FD1','Competitive'],['--pv','#B01E63','PV signal'],['--c1','#0E9BA6','Series 1'],['--c2','#6C5CE7','Series 2']]]];
+  return phead({title:'Design System',
+    sub:'The component library and tokens behind the console. Built for a dense, regulated back-office: slate neutrals with a petrol-teal accent, reserved semantic colours, tabular numerics, and a validated categorical chart palette.',
+    act:`<button class="btn" onclick="toggleTheme()">${ic('sun')}Toggle theme</button><button class="btn" onclick="toast('Tokens exported')">${ic('download')}Tokens</button>`})
+  + `<div class="sec-t">Colour tokens</div>`
+  + `<div class="grid g-4">`+swatches.map(([t,items])=>panel({title:t,body:`<div class="grid g-2" style="gap:8px">${items.map(([v,hex,n])=>`<div class="ds-sw"><div class="cap" style="background:var(${v})"></div><div class="meta"><b>${n}</b><code>${hex}</code></div></div>`).join('')}</div>`})).join('')+`</div>`
+  + `<div class="banner info" style="margin-top:14px">${ic('info')}<div class="tx"><b>Categorical chart palette is validated, not eyeballed.</b> Six-slot fixed order (teal · violet · amber · green · blue · pink); assigned by entity, never cycled; every chart ships a legend + labels so identity is never colour-alone. Status colours are reserved and never used as a series hue.</div></div>`
+  + `<div class="sec-t">Typography</div>`
+  + panel({body:`<div class="type-row"><span class="lbl">Display / H1</span><span style="font-size:26px;font-weight:750;letter-spacing:-.02em">Manager Dashboard</span></div>
+     <div class="type-row"><span class="lbl">Section</span><span style="font-size:13px;font-weight:650">Team overview</span></div>
+     <div class="type-row"><span class="lbl">Body</span><span style="font-size:13px">Coverage, adherence and CRM completion across your first line.</span></div>
+     <div class="type-row"><span class="lbl">Label · caps</span><span style="font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">Representative</span></div>
+     <div class="type-row"><span class="lbl">Data · mono</span><span class="mono num" style="font-size:15px">PV-2026-0847 · 99.2% · 3.1h</span></div>
+     <p class="mut" style="margin:12px 0 0;font-size:11.5px">System UI stack for native desktop feel + <code class="mono">tabular-nums</code> everywhere digits align. A monospace face carries reference IDs, timestamps and confidence scores so columns line up.</p>`})
+  + `<div class="sec-t">Components</div>`
+  + `<div class="grid g-2">`
+    +panel({title:'Buttons',body:`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn primary">${ic('check')}Primary</button><button class="btn">Secondary</button><button class="btn ghost">Ghost</button><button class="btn danger">${ic('x')}Danger</button><button class="btn sm">Small</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${statusPill('Compliant')}${statusPill('Off-Label Refused')}${statusPill('PV Signal')}${statusPill('Competitive Mention')}<span class="tier A">A</span><span class="tier B">B</span><span class="tier C">C</span></div>`})
+    +panel({title:'KPI tile',body:kpi({icon:'route',label:'Coverage',val:82,unit:'%',delta:4,sub:'vs last cycle',target:90,spark:[71,74,72,78,80,79,82],sparkTone:'good'})})
+    +panel({title:'Data cells',body:`<div class="stk" style="gap:12px">${cbar(94)}${cbar(76)}${cbar(63)}<div style="display:flex;align-items:center;gap:10px">${ring(88,{size:34,sw:5,fs:11})}${ring(64,{size:34,sw:5,fs:11})}${ring(48,{size:34,sw:5,fs:11})}<span class="mut" style="font-size:11px">readiness rings</span></div></div>`})
+    +panel({title:'Banners',body:`<div class="stk" style="gap:8px"><div class="banner pv">${ic('shield')}<div class="tx">PV — human-in-the-loop required</div></div><div class="banner warn">${ic('alert')}<div class="tx">2 recaps overdue &gt;48h</div></div><div class="banner info">${ic('info')}<div class="tx">Readiness is a coaching signal, not a score</div></div></div>`})
+  +`</div>`
+  + `<div class="sec-t">Empty · loading · error states</div>`
+  + `<div class="grid g-3">`
+    +panel({title:'Empty state',pad:false,body:state({icon:'empty',title:'No competitive mentions yet',msg:'When reps capture competitor references in debriefs, they’ll route here automatically.',act:`<button class="btn sm" onclick="go('marketing')">View routed intelligence</button>`})})
+    +panel({title:'Loading state',pad:false,body:`<div style="padding:16px"><div class="skel" style="height:14px;width:60%;margin-bottom:10px"></div><div class="skel" style="height:11px;width:90%;margin-bottom:8px"></div><div class="skel" style="height:11px;width:80%;margin-bottom:16px"></div><div class="skel" style="height:64px;border-radius:10px"></div><div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:16px;color:var(--muted);font-size:12px"><span class="dots"><i></i><i></i><i></i></span>Generating report…</div></div>`})
+    +panel({title:'Error state',pad:false,body:state({err:true,icon:'alert',title:'CRM sync unavailable',msg:'Veeva API didn’t respond. Captured recaps are queued and will sync on reconnect — nothing is lost.',act:`<button class="btn sm" onclick="toast('Retrying CRM sync…')">${ic('refresh')}Retry sync</button>`})})
+  +`</div>`
+  + `<div class="banner info" style="margin-top:20px">${ic('info')}<div class="tx"><b>One design language, two surfaces.</b> This console is the deliberate opposite of the field PWA — dense, multi-panel, keyboard-driven — but shares the compliance posture, status vocabulary and knowledge-base grounding that make the product provably safe end to end.</div></div>`;
+};
+</script>
+<script id="app-boot">
+/* ============================================================
+   BOOT
+   ============================================================ */
+(function(){
+  buildNav('dashboard');
+  // initial render (no artificial skeleton on first paint)
+  $('#crumbTitle').textContent=TITLES.dashboard.t;
+  $('#crumbGrp').innerHTML=`${TITLES.dashboard.grp} ${ic('arrowr')} `;
+  $('#content').innerHTML='<div class="page">'+SCREENS.dashboard()+'</div>';
+  // keyboard: ⌘K focuses search, Esc closes drawer
+  document.addEventListener('keydown',e=>{
+    if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();const s=document.querySelector('.topbar .search input');if(s)s.focus();}
+    if(e.key==='Escape')closeDrawer();
+  });
+})();
+</script>
+</body>
+</html>
