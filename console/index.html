@@ -349,6 +349,33 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12px}
 .drawer-b{flex:1 1 auto;overflow-y:auto;padding:18px}
 .drawer-f{flex:0 0 auto;border-top:1px solid var(--line);padding:12px 18px;display:flex;gap:8px;justify-content:flex-end;background:var(--panel-2)}
 
+/* profile / role switcher */
+.pchip{display:flex;align-items:center;gap:8px;height:34px;padding:0 8px 0 7px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2)}
+.pchip:hover{border-color:var(--line-strong);background:var(--panel)}
+.pchip .avatar{width:24px;height:24px;font-size:10px}
+.pchip .pmeta{text-align:left;line-height:1.15;min-width:0}
+.pchip .pmeta b{display:block;font-size:11.5px;font-weight:650;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.pchip .pmeta span{font-size:10px;color:var(--muted);white-space:nowrap}
+.pchip .chev{width:14px;height:14px;color:var(--faint);flex:0 0 auto}
+.rail-user .chev{width:14px;height:14px;color:var(--rail-muted);margin-left:auto;flex:0 0 auto}
+.pmenu-scrim{position:fixed;inset:0;z-index:95;display:none}.pmenu-scrim.on{display:block}
+.pmenu{position:fixed;z-index:96;width:302px;background:var(--panel);border:1px solid var(--line);border-radius:13px;
+  box-shadow:var(--sh-3);padding:6px;opacity:0;transform:translateY(6px);pointer-events:none;transition:.14s}
+.pmenu.on{opacity:1;transform:none;pointer-events:auto}
+.pmenu-h{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:9px 10px 7px;
+  display:flex;align-items:center;gap:6px}.pmenu-h svg{width:13px;height:13px}
+.pmenu-item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border:1px solid transparent;border-radius:9px;background:transparent;text-align:left}
+.pmenu-item:hover{background:var(--panel-3)}
+.pmenu-item.on{background:var(--brand-tint);border-color:var(--brand-tint-2)}
+.pmenu-item .m{min-width:0;flex:1}
+.pmenu-item .m b{display:block;font-size:12.5px;color:var(--ink)}
+.pmenu-item .m span{font-size:11px;color:var(--muted)}
+.pmenu-item .m .rmods{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+.pmenu-item .m .rmods i{font-style:normal;font-size:9.5px;font-weight:600;color:var(--muted);background:var(--panel-3);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+.pmenu-item.on .m .rmods i{background:var(--panel);border-color:var(--brand-tint-2)}
+.pmenu-item .ck2{margin-left:2px;color:var(--brand);flex:0 0 auto;width:17px;height:17px}
+.pmenu-foot{font-size:10.5px;color:var(--faint);padding:9px 10px 6px;border-top:1px solid var(--line-2);margin-top:4px;line-height:1.4}
+
 /* misc utility */
 .def{display:grid;grid-template-columns:120px 1fr;gap:6px 14px;font-size:12.5px}
 .def dt{color:var(--muted);font-weight:550}.def dd{margin:0;color:var(--ink);font-weight:550}
@@ -433,9 +460,10 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12px}
     </div>
     <nav class="nav" id="nav"><!-- built by JS --></nav>
     <div class="rail-foot">
-      <div class="rail-user" onclick="toast('Signed in as Nadia Haddad — First-line Sales Manager')">
-        <div class="avatar">NH</div>
-        <div class="rail-foot-txt"><b>Nadia Haddad</b><span>First-line Manager</span></div>
+      <div class="rail-user" id="railUser" onclick="toggleProfile(event)" title="Switch user / role">
+        <div class="avatar" id="railAv">NH</div>
+        <div class="rail-foot-txt"><b id="railName">Nadia Haddad</b><span id="railRole">First-line Manager</span></div>
+        <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M8 9l4-4 4 4M8 15l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
     </div>
   </aside>
@@ -458,7 +486,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12px}
           <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M4 9h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
           Cycle 4 · Wk 3
         </button>
-        <button class="compliance" onclick="go('compliance')" title="Compliance status">
+        <button class="compliance" onclick="complianceChip()" title="Compliance status">
           <span class="beat"></span> All systems compliant
         </button>
         <button class="icon-btn bell" onclick="toast('3 items need review — 1 PV, 2 escalations')" aria-label="Notifications">
@@ -466,6 +494,12 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12px}
         </button>
         <button class="icon-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme" id="themeBtn">
           <svg viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        </button>
+        <div style="width:1px;height:22px;background:var(--line);margin:0 2px"></div>
+        <button class="pchip" id="topProfile" onclick="toggleProfile(event)" title="Switch user / role" aria-label="Account and role">
+          <span class="avatar" id="topAv">NH</span>
+          <div class="pmeta only-wide"><b id="topName">Nadia Haddad</b><span id="topRole">Manager</span></div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
       </div>
     </header>
@@ -485,6 +519,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12px}
   <div class="drawer-b" id="drawerBody"></div>
   <div class="drawer-f" id="drawerFoot"></div>
 </aside>
+<div class="pmenu-scrim" id="pmenuScrim" onclick="closeProfile()"></div>
+<div class="pmenu" id="pmenu" role="menu" aria-label="Switch user"></div>
 <div class="tt" id="tt"></div>
 <div id="toast" style="position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(30px);z-index:100;background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:12.5px;font-weight:550;box-shadow:var(--sh-3);opacity:0;transition:.22s;pointer-events:none;max-width:80vw"></div>
 
@@ -808,12 +844,70 @@ const NAV=[
  {grp:'System',items:[{id:'design',ic:'palette',t:'Design System'}]}
 ];
 const TITLES={};NAV.forEach(g=>g.items.forEach(i=>TITLES[i.id]={t:i.t,grp:g.grp}));
-function buildNav(active){$('#nav').innerHTML=NAV.map(g=>`<div class="nav-group-t">${g.grp}</div>`+g.items.map(i=>
-  `<div class="nav-item ${i.id===active?'active':''}" onclick="go('${i.id}')" title="${esc(i.t)}">${ic(i.ic)}<span class="nav-label">${esc(i.t)}</span>${i.badge?`<span class="nav-badge ${i.badge==='2'?'':'neutral'}">${i.badge}</span>`:''}</div>`).join('')).join('');}
+
+/* ---- multi-user, role-based access ----
+   Information Architecture + Design System are meta screens, visible to all.
+   The 7 functional modules are gated to the roles that own them (PRD §2.1). */
+const USERS={
+ manager:{n:'Nadia Haddad',role:'First-line Sales Manager',short:'Manager',av:'NH',color:'var(--brand-600)',
+   mods:['Dashboard','Coaching','Analytics'],home:'dashboard',
+   allow:['ia','dashboard','coaching','analytics','design']},
+ medaffairs:{n:'Dr. Yousef Karam',role:'Marketing / Medical Affairs',short:'Med Affairs',av:'YK',color:'#6C4FD1',
+   mods:['Marketing','Analytics'],home:'marketing',
+   allow:['ia','marketing','analytics','design']},
+ pv:{n:'Dr. Fatima Noor',role:'Pharmacovigilance Officer',short:'PV Officer',av:'FN',color:'#B01E63',
+   mods:['PV','Audit','Analytics'],home:'pv',
+   allow:['ia','pv','compliance','analytics','design']},
+ admin:{n:'Adil Rahman',role:'Compliance / Admin',short:'Compliance',av:'AR',color:'#1F8A57',
+   mods:['Full access','Config'],home:'compliance',
+   allow:['ia','dashboard','coaching','analytics','marketing','pv','compliance','config','design']}
+};
+let USERKEY='manager', USER=USERS.manager;
+
+function buildNav(active){$('#nav').innerHTML=NAV.map(g=>{
+  const items=g.items.filter(i=>USER.allow.includes(i.id));
+  if(!items.length)return '';
+  return `<div class="nav-group-t">${g.grp}</div>`+items.map(i=>
+    `<div class="nav-item ${i.id===active?'active':''}" onclick="go('${i.id}')" title="${esc(i.t)}">${ic(i.ic)}<span class="nav-label">${esc(i.t)}</span>${i.badge?`<span class="nav-badge ${i.badge==='2'?'':'neutral'}">${i.badge}</span>`:''}</div>`).join('');
+}).join('');}
+
+/* profile dropdown */
+function renderProfileTriggers(){
+  ['railAv','topAv'].forEach(id=>{const e=$('#'+id);if(e){e.textContent=USER.av;e.style.background=USER.color;}});
+  if($('#railName'))$('#railName').textContent=USER.n;
+  if($('#railRole'))$('#railRole').textContent=USER.role;
+  if($('#topName'))$('#topName').textContent=USER.n;
+  if($('#topRole'))$('#topRole').textContent=USER.short;
+}
+function renderProfileMenu(){
+  $('#pmenu').innerHTML=`<div class="pmenu-h">${ic('users')}Switch user · role-based access</div>`
+   +Object.entries(USERS).map(([k,u])=>`<button class="pmenu-item ${k===USERKEY?'on':''}" role="menuitemradio" aria-checked="${k===USERKEY}" onclick="setUser('${k}')">
+      <span class="avatar" style="background:${u.color}">${u.av}</span>
+      <span class="m"><b>${esc(u.n)}</b><span>${esc(u.role)}</span><span class="rmods">${u.mods.map(m=>`<i>${esc(m)}</i>`).join('')}</span></span>
+      ${k===USERKEY?`<span class="ck2">${ic('checkc')}</span>`:''}</button>`).join('')
+   +`<div class="pmenu-foot">Each role sees only the modules it owns. Switching user re-scopes navigation and opens that role’s home. Information Architecture &amp; Design System stay visible to all.</div>`;
+}
+function toggleProfile(e){e.stopPropagation();const menu=$('#pmenu');
+  if(menu.classList.contains('on')){closeProfile();return;}
+  renderProfileMenu();menu.classList.add('on');$('#pmenuScrim').classList.add('on');
+  const t=e.currentTarget.getBoundingClientRect();const mw=302,mh=menu.offsetHeight||300;
+  let left=t.left, top;
+  if(t.left>innerWidth/2)left=Math.max(8,t.right-mw);
+  left=Math.min(left,innerWidth-mw-8);
+  top=(t.bottom+mh+8<innerHeight)?t.bottom+6:t.top-mh-6;
+  menu.style.left=Math.max(8,left)+'px';menu.style.top=Math.max(8,top)+'px';}
+function closeProfile(){$('#pmenu').classList.remove('on');$('#pmenuScrim').classList.remove('on');}
+function setUser(k){USERKEY=k;USER=USERS[k];renderProfileTriggers();closeProfile();
+  toast('Viewing as '+USER.n+' — '+USER.role);
+  if(!USER.allow.includes(CURRENT))go(USER.home);else{buildNav(CURRENT);}}
+function complianceChip(){if(USER.allow.includes('compliance'))go('compliance');
+  else toast('All systems compliant — the full audit trail is available to the Compliance & PV roles.');}
+window.toggleProfile=toggleProfile;window.closeProfile=closeProfile;window.setUser=setUser;window.complianceChip=complianceChip;
 
 let CURRENT='dashboard';
 const SCREENS={};
 function go(id){if(!SCREENS[id]){toast('Screen not found');return;}
+  if(USER&&!USER.allow.includes(id)){toast('“'+TITLES[id].t+'” isn’t part of the '+USER.short+' role');closeProfile();return;}
   CURRENT=id;buildNav(id);
   $('#crumbTitle').textContent=TITLES[id].t;$('#crumbGrp').textContent=TITLES[id].grp+' ';$('#crumbGrp').style.color='var(--faint)';
   $('#crumbGrp').innerHTML=`${esc(TITLES[id].grp)} ${ic('arrowr')} `;
@@ -1383,11 +1477,13 @@ SCREENS.design=function(){
    BOOT
    ============================================================ */
 (function(){
-  buildNav('dashboard');
+  renderProfileTriggers();renderProfileMenu();
+  buildNav(USER.home);CURRENT=USER.home;
   // initial render (no artificial skeleton on first paint)
-  $('#crumbTitle').textContent=TITLES.dashboard.t;
-  $('#crumbGrp').innerHTML=`${TITLES.dashboard.grp} ${ic('arrowr')} `;
-  $('#content').innerHTML='<div class="page">'+SCREENS.dashboard()+'</div>';
+  $('#crumbTitle').textContent=TITLES[USER.home].t;
+  $('#crumbGrp').innerHTML=`${TITLES[USER.home].grp} ${ic('arrowr')} `;
+  $('#content').innerHTML='<div class="page">'+SCREENS[USER.home]()+'</div>';
+  window.addEventListener('resize',closeProfile);
   // keyboard: ⌘K focuses search, Esc closes drawer
   document.addEventListener('keydown',e=>{
     if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();const s=document.querySelector('.topbar .search input');if(s)s.focus();}
