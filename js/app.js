@@ -51,6 +51,11 @@
     activityDays: 7,
     mgrCols: load('merz_mgrcols', null) || { q30: true, completion: true, last: true, cert: true, next: true },
     qFilter: { product: 'all', origin: 'all', status: 'all' },
+    prodFilter: { q: '', type: 'all', status: 'all' },
+    kb: { tab: 'active', q: '', parsingDocId: null, fileName: '', product: '' },
+    threads: load('merz_threads', []),
+    hist: { q: '' },
+    brandView: null,
     assess: {
       threshold: storedAssess.threshold != null ? storedAssess.threshold : 80,
       cert: storedAssess.cert || clone(REP_CERT),
@@ -58,20 +63,37 @@
       approved: storedAssess.approved || [],
       retired: storedAssess.retired || [],
       custom: storedAssess.custom || [],
+      attempts: storedAssess.attempts || [],
+      perAttempt: storedAssess.perAttempt || 6,
       run: null
     }
   };
   function saveAssess() {
-    save('merz_assess', { threshold: S.assess.threshold, cert: S.assess.cert, pools: S.assess.pools, approved: S.assess.approved, retired: S.assess.retired, custom: S.assess.custom });
+    save('merz_assess', { threshold: S.assess.threshold, cert: S.assess.cert, pools: S.assess.pools, approved: S.assess.approved, retired: S.assess.retired, custom: S.assess.custom, attempts: S.assess.attempts, perAttempt: S.assess.perAttempt });
   }
   /* --------------------------------------------------------- product access
      Role-based entitlement: an admin assigns which medicines each rep may
      handle. The signed-in rep only sees products in S.access. */
-  const canAccess = (pid) => S.access.indexOf(pid) !== -1;
-  const accessProducts = () => ALL_PRODUCTS.filter(canAccess);
+  /* Access decisions are delegated to the service layer (the single enforcement
+     point). Views read from it; they never re-implement the security filter. */
+  const SVC = window.MerzService;
+  const canAccess = (pid) => SVC.canAccessProduct(pid);
+  const accessProducts = () => { const g = SVC.grantedProductSlugs(); return ALL_PRODUCTS.filter((p) => g.indexOf(p) !== -1); };
   function syncAccessFromUsers() {
     const me = S.users.find((u) => u.name === CURRENT_REP);
-    if (me) { S.access = (me.products && me.products.length ? me.products : ALL_PRODUCTS).slice(); save('merz_access', S.access); }
+    const slugs = (me && me.products && me.products.length ? me.products : ALL_PRODUCTS).slice();
+    S.access = slugs; save('merz_access', S.access);
+    const karim = SVC.userByName(CURRENT_REP);
+    if (karim) SVC.setBrandGrants(karim.id, slugs); // write grants through the service
+  }
+  /* Keep the service session aligned with the active persona so role and
+     permission-set checks resolve against the right user. */
+  let _lastSessionRole = null;
+  function syncSession() {
+    const role = roleOfView(S.view);
+    if (role === _lastSessionRole) return;
+    _lastSessionRole = role;
+    SVC.setSession({ rep: CURRENT_REP, mgr: 'Bahaa K.', adm: 'Fouad J.' }[role] || CURRENT_REP);
   }
 
   const allQuestions = () => QUESTIONS.concat(S.assess.custom);
@@ -177,11 +199,102 @@
   }
   const detectPV = (text) => { const q = text.toLowerCase(); return PV_TERMS.some((t) => q.indexOf(t) !== -1); };
 
+  const isCompare = (t) => /\bcompare\b|\bversus\b|\bvs\.?\b/i.test(t || '');
+  function provenanceLabel(entry) {
+    const titles = (entry.sources || []).map((s) => (s.title || '').toLowerCase());
+    if (titles.some((t) => /product information|label|leaflet|monograph/.test(t))) return 'directly from the approved label';
+    if (titles.some((t) => /medical affairs|approved answer/.test(t))) return 'from a Medical Affairs answer';
+    if (titles.some((t) => /training|guide/.test(t))) return 'from approved training material';
+    return 'from approved sources';
+  }
+  const headingPath = (entry, s) => [PRODUCTS[entry.product] ? PRODUCTS[entry.product].name : entry.product, entry.category || 'general', s.title].join(' › ');
+  const trimSnippet = (t, n) => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > (n || 130) ? t.slice(0, n || 130).replace(/\s\S*$/, '') + '…' : t; };
+
+  /* Comparison intent → columnar per-brand template (Part D1, ASK-15). Only
+     products the rep is granted are eligible as columns (scoped in service). */
+  function referencedProducts(text) {
+    const q = ' ' + text.toLowerCase() + ' ';
+    const granted = SVC.grantedProductSlugs();
+    const prods = SVC.products().filter((p) => granted.indexOf(p.slug) !== -1);
+    const hit = prods.filter((p) => q.indexOf(' ' + p.display_name.toLowerCase()) !== -1 || (p.aliases || []).some((a) => a && q.indexOf(a) !== -1));
+    if (hit.length >= 2) return hit;
+    if (/\bbrands?\b|portfolio|competitor|neurotoxin|filler|biostimulator/.test(q)) return prods.filter((p) => !p.is_competitor).slice(0, 4);
+    return hit;
+  }
+  function buildComparison(text) {
+    const prods = referencedProducts(text);
+    if (prods.length < 2) return null;
+    const cols = prods.slice(0, 4).map((p) => {
+      const hits = SVC.retrieveChunks(text, { productSlug: p.slug, topK: 1 });
+      const sources = SVC.chunks().filter((c) => c.product_slug === p.slug).length;
+      return { slug: p.slug, name: p.display_name, category: p.category || '—', bestFor: p.description || '—', sources: sources, point: hits[0] ? trimSnippet(hits[0].chunk.text) : 'No approved detail retrieved.' };
+    });
+    return { cols: cols };
+  }
+  function comparisonHtml(cmp) {
+    const cols = cmp.cols;
+    const th = cols.map((c) => `<th>${esc(c.name)}</th>`).join('');
+    const rowvals = (fn) => cols.map((c) => `<td>${fn(c)}</td>`).join('');
+    return `<div class="cmpwrap"><div class="gh">${ic('compare', 14)} Side-by-side comparison</div>
+      <div class="cmpscroll"><table class="cmptable">
+        <tr><th class="rl">Approved dimension</th>${th}</tr>
+        <tr><td class="rl">Category</td>${rowvals((c) => esc(c.category))}</tr>
+        <tr><td class="rl">Best for</td>${rowvals((c) => esc(c.bestFor))}</tr>
+        <tr><td class="rl">Approved sources</td>${rowvals((c) => c.sources + ' indexed')}</tr>
+        <tr><td class="rl">Key approved point</td>${rowvals((c) => esc(c.point))}</tr>
+      </table></div>
+      <div class="disc">${ic('info', 15)}<span>Comparison is assembled from each product's approved sources, scoped to the medicines assigned to you. Present only claims that appear in the locally approved label.</span></div></div>`;
+  }
+
   function resolve(text, forcedEntryId) {
+    /* Part D1 step 1 — guardrail classifier. Off-label / PV / injection are all
+       LOGGED (ComplianceFlag), never silently dropped. */
+    const injection = SVC.detectInjection(text);
+    const pv = detectPV(text);
+    const offlabel = detectOffLabel(text);
+    if (injection) SVC.logComplianceFlag({ input_text: text, flag_type: 'injection', threadId: S.chat && S.chat.cid });
+    if (offlabel) SVC.logComplianceFlag({ input_text: text, flag_type: 'off_label', threadId: S.chat && S.chat.cid });
+    if (pv) SVC.logComplianceFlag({ input_text: text, flag_type: 'pv', threadId: S.chat && S.chat.cid });
+    // Injection attempts are refused (no retrieval, no generation) but surfaced.
+    if (injection) return { entry: null, injection: true, pv: pv, offlabel: offlabel, gap: false, denied: null, trace: null };
+
+    // Comparison intent → columnar template (short-circuits the prose answer).
+    if (isCompare(text)) {
+      const comparison = buildComparison(text);
+      if (comparison) {
+        SVC.logAnswer({ question: text, product: comparison.cols.map((c) => c.slug).join('+'), confidence: 'High', template: 'comparison' });
+        const totalSources = comparison.cols.reduce((s, c) => s + c.sources, 0);
+        const trace = { count: totalSources, secs: ((3600 + Math.random() * 1400) / 1000).toFixed(1), confidence: 'High', provenance: 'across approved sources', top: 0 };
+        return { entry: null, comparison: comparison, pv: pv, offlabel: offlabel, injection: false, gap: false, denied: null, trace: trace, compare: true };
+      }
+    }
+
     let entry = null;
     if (forcedEntryId) entry = KB.concat(OBJECTIONS).find((e) => e.id === forcedEntryId) || null;
     if (!entry) entry = matchEntry(text);
-    return { entry, pv: detectPV(text), offlabel: detectOffLabel(text), gap: !entry };
+    /* Part D1 step 2 — brand-grant scoping enforced at retrieval by the service.
+       A denied product is an authorization boundary, NOT a content gap. */
+    let denied = null;
+    if (entry) {
+      const auth = SVC.authorizeRetrieval(entry.product);
+      if (!auth.allowed) { denied = { product: entry.product, reason: auth.reason }; entry = null; }
+    }
+    /* Part D1 steps 3–6 — vector retrieve (scoped), confidence, provenance, log. */
+    let trace = null;
+    if (entry) {
+      const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      const hits = SVC.retrieveChunks(text, { productSlug: entry.product, topK: 4 });
+      const elapsed = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - t0;
+      const top = hits[0] ? hits[0].score : 0;
+      const confidence = top >= 0.2 ? 'High' : top >= 0.09 ? 'Medium' : 'Low';
+      trace = {
+        count: Math.max(entry.sources.length, hits.length),
+        secs: ((elapsed + 3600 + Math.random() * 1400) / 1000).toFixed(1),
+        confidence: confidence, top: top, provenance: provenanceLabel(entry)
+      };
+      SVC.logAnswer({ question: text, product: entry.product, confidence: confidence, template: isCompare(text) ? 'comparison' : 'standard' });
+    }
+    return { entry, pv, offlabel, injection: false, gap: !entry && !denied, denied, trace, compare: isCompare(text) };
   }
 
   /* =====================================================================
@@ -192,20 +305,50 @@
   function askQuestion(text, forcedEntryId) {
     text = (text || '').trim();
     if (!text) return;
-    if (!S.chat || !S.chat.turns) S.chat = { turns: [] };
-    const turn = { question: text, resolved: null, mode: 'hcp', drawerOpen: false };
+    if (!S.chat || !S.chat.turns) S.chat = { cid: 'c-' + Math.random().toString(36).slice(2, 9), startedAt: Date.now(), turns: [] };
+    const turn = { question: text, resolved: null, stage: 'searching', mode: 'hcp', drawerOpen: false };
     S.chat.turns.push(turn);
-    S.view = 'chat'; S.navOpen = false;
+    S.view = 'thread'; S.navOpen = false;
     render();
     setTimeout(() => {
       turn.resolved = resolve(text, forcedEntryId);
-      render();
-      const m = $('.main'); if (m) m.scrollTop = m.scrollHeight;
-    }, 750);
+      // Part D1 step 6 — stage the reveal: retrieval trace + confidence first,
+      // then the answer body resolves (mimics streaming).
+      const done = () => { turn.stage = 'full'; render(); saveThread(); const m = $('.main'); if (m) m.scrollTop = m.scrollHeight; };
+      if (turn.resolved.entry || turn.resolved.comparison) {
+        turn.stage = 'trace'; render();
+        setTimeout(done, 650);
+      } else { done(); }
+    }, 650);
   }
   function newQuestion() { S.chat = null; S.view = 'home'; S.navOpen = false; render(); setTimeout(() => { const i = $('#askInput'); if (i) i.focus(); }, 30); }
 
-  const roleOfView = (v) => (v === 'mgr' ? 'mgr' : (v === 'adm' || v === 'assess') ? 'adm' : 'rep');
+  /* Persist threads for Chat history (addressable by cid). */
+  function saveThread() {
+    if (!S.chat || !S.chat.cid || !S.chat.turns.length) return;
+    const answered = S.chat.turns.filter((t) => t.resolved);
+    if (!answered.length) return;
+    const lastEntry = answered.slice().reverse().find((t) => t.resolved.entry);
+    const rec = {
+      cid: S.chat.cid, title: S.chat.turns[0].question,
+      product: lastEntry ? lastEntry.resolved.entry.product : (answered[answered.length - 1].resolved.comparison ? 'compare' : null),
+      startedAt: S.chat.startedAt || Date.now(), updatedAt: Date.now(),
+      turns: answered.map((t) => ({ question: t.question, entryId: t.resolved.entry ? t.resolved.entry.id : null, mode: t.mode }))
+    };
+    const i = S.threads.findIndex((x) => x.cid === rec.cid);
+    if (i === -1) S.threads.unshift(rec); else S.threads[i] = rec;
+    save('merz_threads', S.threads);
+  }
+  function openThread(cid) {
+    const rec = S.threads.find((x) => x.cid === cid);
+    if (!rec) return;
+    S.chat = { cid: rec.cid, startedAt: rec.startedAt, turns: rec.turns.map((t) => ({ question: t.question, mode: t.mode || 'hcp', stage: 'full', drawerOpen: false, resolved: resolve(t.question, t.entryId) })) };
+    S.view = 'thread'; S.navOpen = false; render();
+  }
+  function openBrand(slug) { S.brandView = slug; S.view = 'brand'; S.navOpen = false; render(); window.scrollTo(0, 0); }
+
+  const ADMIN_VIEWS = ['adm', 'assess', 'products', 'kb', 'kbadd'];
+  const roleOfView = (v) => (v === 'mgr' ? 'mgr' : ADMIN_VIEWS.indexOf(v) !== -1 ? 'adm' : 'rep');
 
   /* =====================================================================
      SHELL: sidebar + appbar
@@ -215,7 +358,7 @@
     const badge = PERSONA[role];
     let showProds = true, gate = '';
     if (role === 'mgr') { showProds = false; gate = `<div class="gate"><a data-action="nav" data-view="mgr" class="on"><span class="ic">${ic('barChart', 17)}</span> Team Pulse</a></div>`; }
-    else if (role === 'adm') { showProds = false; gate = `<div class="gate"><a data-action="nav" data-view="mgr"><span class="ic">${ic('barChart', 17)}</span> Team Pulse</a><a data-action="nav" data-view="assess" class="${active === 'assess' ? 'on' : ''}"><span class="ic">${ic('graduationCap', 17)}</span> Assessments</a><a data-action="nav" data-view="adm" class="${active === 'adm' ? 'on' : ''}"><span class="ic">${ic('settings', 17)}</span> Admin</a></div>`; }
+    else if (role === 'adm') { showProds = false; gate = `<div class="gate"><a data-action="nav" data-view="mgr"><span class="ic">${ic('barChart', 17)}</span> Team Pulse</a><a data-action="nav" data-view="assess" class="${active === 'assess' ? 'on' : ''}"><span class="ic">${ic('graduationCap', 17)}</span> Assessments</a><a data-action="nav" data-view="products" class="${active === 'products' ? 'on' : ''}"><span class="ic">${ic('clipboardList', 17)}</span> Products</a><a data-action="nav" data-view="kb" class="${active === 'kb' || active === 'kbadd' ? 'on' : ''}"><span class="ic">${ic('layers', 17)}</span> Knowledge base</a><a data-action="nav" data-view="adm" class="${active === 'adm' ? 'on' : ''}"><span class="ic">${ic('settings', 17)}</span> Admin</a></div>`; }
 
     const navHtml = repNav.map((n) =>
       `<a data-action="nav" data-view="${n[0]}" class="${active === n[0] ? 'on' : ''}"><span class="ic">${ic(n[1], 17)}</span> ${n[2]}</a>`
@@ -274,14 +417,23 @@
 
     const brands = accessProducts().map((pid) => { const p = PRODUCTS[pid];
       return `<div class="bcard"><div class="bar" style="background:${p.color}"></div><div class="in">
-        <div class="hd"><div class="ic" style="background:${p.bg};color:${p.color}">${p.letter}</div><div><div class="nm">${p.name}</div><div class="cat2">${p.cat2}</div></div></div>
+        <div class="hd" data-action="openbrand" data-product="${p.id}" style="cursor:pointer"><div class="ic" style="background:${p.bg};color:${p.color}">${p.letter}</div><div><div class="nm">${p.name}</div><div class="cat2">${p.cat2}</div></div></div>
         <div class="q" data-action="ask" data-q="${esc(p.spark)}">${esc(p.spark)} ${ic('chevronRight', 15)}</div>
         <div class="appr">${ic('check', 13)} UAE-approved · Reviewed ${p.reviewed}</div></div></div>`;
     }).join('');
 
+    const myGranted = accessProducts();
+    const srcCount = SVC.documents().filter((d) => d.status === 'active' && myGranted.indexOf(d.product_slug) !== -1).length;
+    const qAsked = 581 + SVC.answers().length;
+    const statCards = `<div class="statcards">
+      <div class="statcard"><div class="sl mono">QUESTIONS ASKED</div><div class="sv">${qAsked}</div><div class="ss">${307 + S.threads.length} threads</div></div>
+      <div class="statcard"><div class="sl mono">ACTIVE REPS</div><div class="sv">${REPS.length}</div><div class="ss">of ${REPS.length} on the team</div></div>
+      <div class="statcard"><div class="sl mono">APPROVED SOURCES</div><div class="sv">${srcCount}</div><div class="ss">across ${myGranted.length} brand${myGranted.length !== 1 ? 's' : ''}</div></div>
+    </div>`;
     return `
       <div class="hero"><div class="date mono">FRIDAY, JULY 10</div><h1>Good morning, Karim</h1>
-        <div class="sub">Ask anything about your products. Every answer comes from approved Merz sources.</div></div>
+        <div class="sub">${myGranted.length} brand${myGranted.length !== 1 ? 's' : ''} · ${srcCount} approved sources in your knowledge base. Every answer comes from approved Merz sources.</div></div>
+      ${statCards}
       <div class="ask">${ic('search', 18)}<input id="askInput" placeholder="Ask anything about your products..." autocomplete="off">
         <span class="kbd">&#8984;K</span><span class="mic" data-action="mic" title="Voice input">${ic('mic', 18)}</span><span class="go" data-action="asksend">${ic('send', 18)}</span></div>
       <div class="cats">${cats}</div>
@@ -315,10 +467,39 @@
     let out = `<div class="pillrow">
       <span class="pill2 scope">${dot(scopeColor, 8)} ${esc(scope)}</span>
       ${pill('mkt', 'UAE')}
-      ${r.entry ? pill('trust', `${ic('check', 13)} ${r.entry.sources.length} approved source${r.entry.sources.length > 1 ? 's' : ''} · UAE label checked`) : pill('mkt', 'No approved answer yet')}
+      ${r.entry ? pill('trust', `${ic('check', 13)} ${r.entry.sources.length} approved source${r.entry.sources.length > 1 ? 's' : ''} · UAE label checked`) : (r.denied ? pill('mkt', `${ic('lock', 12)} Restricted`) : pill('mkt', 'No approved answer yet'))}
       ${r.entry ? pill('rev', `${ic('clock', 12)} Source set reviewed 3 Jul 2026`) : ''}
     </div>
     <div class="qtitle">${esc(turn.question)}</div>`;
+
+    if (r.denied) {
+      const dp = PRODUCTS[r.denied.product];
+      out += `<div class="abox"><div class="gband" style="border-left-color:var(--warn-ink)"><div class="gh">${ic('lock', 13)} Not in your assigned products</div>
+        <div class="lead"><b>${esc(dp ? dp.name : 'This product')}</b> isn't among the medicines your admin has assigned to you, so its approved sources aren't retrievable from your account. Contact your admin if you need this access.</div></div>
+        <div class="disc">${ic('info', 15)}<span>Access is enforced when sources are <b>retrieved</b> — not just hidden in the menu. This request was blocked at the retrieval layer.</span></div></div>
+        <div class="actrow"><div class="abtn" data-action="nav" data-view="lib">${ic('library', 14)} Browse your assigned Library</div></div>`;
+      return out;
+    }
+
+    if (r.injection) {
+      out += `<div class="warnband ol"><div class="wh">${ic('shield', 14)} Input flagged — not run as a question</div>
+        Your message looks like an attempt to change the assistant's instructions or extract its configuration. It was <b>not</b> run against the knowledge base. The input has been logged for compliance review.</div>
+        <div class="disc">${ic('info', 15)}<span>Adversarial inputs (prompt injection) are detected, logged and surfaced to admins — never silently dropped.</span></div>`;
+      return out;
+    }
+
+    // Retrieval trace + confidence chrome (renders before the body resolves).
+    if (r.trace) {
+      out += `<div class="tracewrap">
+        <span class="tracechip" data-action="drawer" title="Show the sources this drew on">${ic('search', 13)} Researched ${r.trace.count} source${r.trace.count > 1 ? 's' : ''} · ${r.trace.secs}s ${ic('chevronDown', 12)}</span>
+        <span class="confbadge ${r.trace.confidence.toLowerCase()}"><span class="cdot"></span> ${r.trace.confidence} confidence · ${esc(r.trace.provenance)}</span>
+      </div>`;
+    }
+    // Staged reveal: after the trace shows, the answer body composes.
+    if (turn.stage === 'trace' && (r.entry || r.comparison)) {
+      out += `<div class="composing"><div class="dots"><i></i><i></i><i></i></div> Composing the approved answer…</div>`;
+      return out;
+    }
 
     if (r.pv) {
       out += `<div class="warnband pv"><div class="wh">${ic('shieldAlert', 14)} Possible adverse event / product complaint</div>
@@ -328,6 +509,12 @@
     if (r.offlabel) {
       out += `<div class="warnband ol"><div class="wh">${ic('alertTriangle', 14)} Potentially off-label</div>
         A question about <b>${esc(PRODUCTS[r.offlabel.product].name)} — ${esc(r.offlabel.area)}</b> may fall outside the locally approved indication. ${esc(r.offlabel.note)} Present only approved indications. This question is <b>not auto-routed to Medical Affairs</b> — it's logged in the admin panel so Medical Affairs can review it there. Raise it yourself if the HCP needs more.</div>`;
+    }
+
+    if (r.comparison) {
+      out += comparisonHtml(r.comparison);
+      out += `<div class="seclbl mono">SUGGESTED FOLLOW-UPS</div><div class="fups">${['What are the contraindications?', 'Show approved indications by product', 'Which is best for a specific area?'].map((f) => `<div class="fup" data-action="ask" data-q="${esc(f)}">${esc(f)}</div>`).join('')}</div>`;
+      return out;
     }
 
     if (r.entry) {
@@ -348,7 +535,9 @@
       ).join('');
       const note = content.note ? `<div class="plevel">${content.note}</div>` : '';
 
+      const foots = (e.sources || []).map((s) => `<div class="foot"><sup>${s.n}</sup><span>${esc(headingPath(e, s))}</span></div>`).join('');
       out += `<div class="spbox"><div class="gh">Supporting points</div>${pts}${note}
+        <div class="footnotes"><div class="fh mono">Citations</div>${foots}</div>
         <div class="showsrc" data-action="drawer"><span>${ic('bookOpen', 15)} ${turn.drawerOpen ? 'Hide' : 'Show'} ${e.sources.length} source${e.sources.length > 1 ? 's' : ''}</span><span class="r">Country, approval date and supporting excerpt included</span></div></div>`;
 
       const savedOn = S.saved.some((s) => s.entryId === e.id);
@@ -407,18 +596,95 @@
     const drawer = (active.resolved && active.resolved.entry && active.drawerOpen)
       ? `<div class="drawer"><div class="dh"><span class="t">Approved sources</span><span class="x" data-action="drawer">${ic('x', 16)}</span></div>${active.resolved.entry.sources.map((s) =>
           `<div class="dsrc" data-src="${s.n}"><div class="top"><span class="num">${s.n}</span><span class="perm ${s.perm}">${s.perm === 'hcp' ? 'HCP-SHAREABLE' : 'INTERNAL'}</span></div>
-            <div class="t2">${esc(s.title)}</div><div class="meta">${esc(s.meta)}</div><div class="ex">"${esc(s.excerpt)}"</div>
+            <div class="t2">${esc(s.title)}</div><div class="meta">${esc(s.meta)}</div>
+            <div class="hpath">${ic('layers', 11)} ${esc(headingPath(active.resolved.entry, s))}</div><div class="ex">"${esc(s.excerpt)}"</div>
             <div class="db"><span class="dbtn dark" data-action="opendoc" data-title="${esc(s.title)}" data-meta="${esc(s.meta)}" data-ex="${esc(s.excerpt)}">${ic('externalLink', 12)} ${esc(s.doc)}</span><span class="dbtn" data-action="ask" data-q="${esc('Tell me more about ' + s.title)}">${ic('messageSquare', 12)} Ask about this</span><span class="dbtn" data-action="nav" data-view="lib">${ic('bookOpen', 12)} View in Library</span></div></div>`
         ).join('')}</div>`
       : '';
 
     const backdrop = (active.resolved && active.resolved.entry && active.drawerOpen) ? '<div class="drawer-backdrop" data-action="drawer"></div>' : '';
+    const brandName = active.resolved && active.resolved.entry ? PRODUCTS[active.resolved.entry.product].name
+      : (active.resolved && active.resolved.comparison ? 'Comparison' : 'Your products');
+    const memory = turns.length;
     return `<div class="chatlayout"><div class="chatmain">
-        <button class="backbtn" data-action="newq">${ic('arrowLeft', 15)} New question</button>
+        <div class="threadhead">
+          <button class="backbtn" data-action="newq">${ic('arrowLeft', 15)} New question</button>
+          <span class="threadmeta">${esc(brandName)} · thread started just now</span>
+          <span class="mempill" title="Retained context items in this thread">${ic('layers', 12)} Memory ${memory}</span>
+        </div>
         ${history}${body}
         <div class="ask"><input id="askInput" placeholder="Ask a follow-up${active.resolved && active.resolved.entry ? ' about ' + PRODUCTS[active.resolved.entry.product].name : ''}..." autocomplete="off"><span class="mic" data-action="mic">${ic('mic', 18)}</span><span class="go" data-action="asksend">${ic('send', 18)}</span></div>
         <div class="voicehint">${ic('volume', 12)} Voice transcribes to text for your confirmation before sending.</div>
       </div>${backdrop}${drawer}</div>`;
+  }
+
+  /* =====================================================================
+     CHAT HISTORY (HIST-1)
+     ===================================================================== */
+  function histRow(rec) {
+    const p = rec.product && PRODUCTS[rec.product];
+    const av = p ? `<span class="bic" style="background:${p.bg};color:${p.color}">${p.letter}</span>`
+      : `<span class="bic" style="background:var(--p1-bg);color:var(--ink)">${ic('compare', 13)}</span>`;
+    return `<div class="histrow" data-action="openthread" data-cid="${esc(rec.cid)}">
+      ${av}<span class="ht"><b>${esc(rec.title)}</b><span class="hm">${rec.turns.length} message${rec.turns.length > 1 ? 's' : ''}${p ? ' · ' + esc(p.name) : ''}</span></span>
+      <span class="ar">${ic('chevronRight', 16)}</span></div>`;
+  }
+  function viewHistory() {
+    const list = MerzUI.filteredListHtml({
+      items: S.threads.slice(), query: S.hist.q, searchKeys: ['title'],
+      searchAction: 'histsearch', searchId: 'histInput', icon: ic('search', 16),
+      searchPlaceholder: 'Search your questions…',
+      countLabel: (n, total) => n + ' of ' + total + ' threads',
+      rowRenderer: histRow,
+      emptyHtml: '<div class="fl-empty">No conversations yet. Ask a question on Home to start one.</div>'
+    });
+    return `
+      <div class="hero"><div class="date mono">CHAT HISTORY</div><h1>Your conversations</h1>
+        <div class="sub">Every question you've asked, newest first. Open one to continue the thread.</div></div>
+      ${list}`;
+  }
+
+  /* =====================================================================
+     BRAND / PRODUCT DETAIL (BRAND-1..4)
+     ===================================================================== */
+  function viewBrand() {
+    const slug = S.brandView, p = PRODUCTS[slug], sp = SVC.productBySlug(slug);
+    if (!p || !canAccess(slug)) {
+      return `<div class="hero"><div class="date mono">BRANDS</div><h1>Not available</h1>
+        <div class="sub">This product isn't in the medicines assigned to you.</div></div>
+        <button class="backbtn" data-action="nav" data-view="home">${ic('arrowLeft', 15)} Back to Home</button>`;
+    }
+    const docs = SVC.documents().filter((d) => d.product_slug === slug && d.status === 'active');
+    const chunkCount = SVC.chunks().filter((c) => c.product_slug === slug).length;
+    const types = Array.from(new Set(docs.map((d) => d.type).filter(Boolean)));
+    const typeChips = (types.length ? types : ['clinical', 'regulatory', 'training']).map((t) => `<span class="ftchip">${esc(t)}</span>`).join('');
+    const team = TEAM_ASKED.filter((t) => t.product === slug);
+    const kbqs = KB.filter((e) => e.product === slug);
+    const commons = (team.length ? team.map((t) => ({ q: t.q, n: t.n, entry: t.entry }))
+      : kbqs.slice(0, 4).map((e) => ({ q: e.q, n: null, entry: e.id })));
+    const commonHtml = commons.map((c) =>
+      `<div class="row" data-action="ask" ${c.entry ? `data-entry="${esc(c.entry)}"` : ''} data-q="${esc(c.q)}"><span class="bic" style="background:${p.bg};color:${p.color}">${p.letter}</span>${esc(c.q)}${c.n ? `<span class="n">${c.n} asks</span>` : ''}<span class="ar">${ic('chevronRight', 16)}</span></div>`
+    ).join('');
+    const chips = [p.spark].concat(kbqs.map((e) => e.q).filter((q) => q !== p.spark)).slice(0, 2)
+      .map((q) => `<span class="q" data-action="ask" data-q="${esc(q)}">${esc(q)}</span>`).join('');
+    return `
+      <div class="crumb"><span data-action="nav" data-view="home">Brands</span> ${ic('chevronRight', 12)} <b>${esc(p.name)}</b></div>
+      <div class="bhero" style="background:${p.bg}">
+        <div class="beyebrow mono">${esc(p.cat2)}</div>
+        <h1 class="bname">${esc(p.name)}</h1>
+        <div class="bind">${esc(sp && sp.description ? sp.description : p.category)}</div>
+        <div class="bchips">${chips}</div>
+        <button class="btn-dark bask" data-action="ask" data-q="${esc(p.spark)}">${ic('messageSquare', 14)} Ask about ${esc(p.name)}</button>
+      </div>
+      <div class="bsec"><div class="seclbl mono">KEY DIFFERENTIATORS</div>
+        <div class="bdiff"><div class="dt">CATEGORY</div><div class="dd">${esc(p.category)}</div>
+          <div class="dt">BEST FOR</div><div class="dd">${esc(sp && sp.description ? sp.description : '—')}</div>
+          <div class="dt">APPROVED SOURCES</div><div class="dd">${docs.length} indexed in the knowledge base</div></div></div>
+      <div class="bsec"><div class="seclbl mono">COMMON QUESTIONS FROM THE TEAM</div>
+        <div class="asked">${commonHtml || '<div class="empty">No questions yet.</div>'}</div></div>
+      <div class="bsec"><div class="seclbl mono">KNOWLEDGE BASE</div>
+        <div class="bkb">${ic('layers', 15)} <b>${docs.length} approved source${docs.length !== 1 ? 's' : ''}</b> · ${chunkCount} indexed chunks
+          <div class="ftchips" style="margin-top:8px">${typeChips}</div></div></div>`;
   }
 
   /* =====================================================================
@@ -565,6 +831,185 @@
       <div class="mbody"><div class="pm-opts">${MGR_COLS.map((c) => `<button class="pm-opt ${S.mgrCols[c.k] ? 'on' : ''}" data-action="togcol" data-k="${c.k}">${ic(S.mgrCols[c.k] ? 'eye' : 'eyeOff', 15)} ${c.th}${S.mgrCols[c.k] ? `<span class="chk">${ic('check', 15)}</span>` : ''}</button>`).join('')}</div>
         <div class="mbanner blue" style="margin-top:12px">${ic('info', 16)}<span>Rep and Profile are always shown. Additional data points Ahmed sends can be added here without a code change.</span></div>
         <div class="mactions"><button class="mbtn primary" data-action="close">Done</button></div></div>`);
+  }
+
+  /* =====================================================================
+     PRODUCTS — catalog (PROD-1..4)
+     ===================================================================== */
+  function prodRow(p) {
+    const typeBadge = p.is_competitor ? '<span class="tbadge comp">competitor</span>' : '<span class="tbadge own">own</span>';
+    const statusBadge = p.is_active ? '<span class="sbadge on">active</span>' : '<span class="sbadge off">archived</span>';
+    const act = p.is_active
+      ? `<button class="btn-sm" data-action="editprod" data-slug="${esc(p.slug)}">${ic('pencil', 12)} Edit</button><button class="btn-sm warn" data-action="deactprod" data-slug="${esc(p.slug)}">${ic('ban', 12)} Deactivate</button>`
+      : `<button class="btn-sm" data-action="editprod" data-slug="${esc(p.slug)}">${ic('pencil', 12)} Edit</button><button class="btn-sm" data-action="reactprod" data-slug="${esc(p.slug)}">${ic('refreshCw', 12)} Reactivate</button>`;
+    return `<div class="prow${p.is_active ? '' : ' archived'}">
+      <span class="pn">${esc(p.display_name)}${p.aliases && p.aliases.length ? `<span class="palias">aka ${esc(p.aliases.join(', '))}</span>` : ''}</span>
+      <span class="ps code">${esc(p.slug)}</span>
+      <span class="pc">${esc(p.category || '—')}</span>
+      <span>${typeBadge}</span>
+      <span>${statusBadge}</span>
+      <span class="pa">${act}</span></div>`;
+  }
+
+  function viewProducts() {
+    const f = S.prodFilter;
+    const items = SVC.products();
+    const list = MerzUI.filteredListHtml({
+      items: items, query: f.q,
+      searchKeys: ['display_name', 'slug', (p) => (p.aliases || []).join(' ')],
+      searchAction: 'prodsearch', searchId: 'prodInput', icon: ic('search', 16),
+      searchPlaceholder: 'Search products, slugs, aliases…',
+      filters: [
+        { value: f.type, action: 'prodftype', label: f.type === 'all' ? 'All types' : (f.type === 'own' ? 'Own' : 'Competitor'),
+          match: (p, v) => v === 'all' ? true : (v === 'own' ? !p.is_competitor : p.is_competitor) },
+        { value: f.status, action: 'prodfstat', label: f.status === 'all' ? 'All status' : (f.status === 'active' ? 'Active' : 'Archived'),
+          match: (p, v) => v === 'all' ? true : (v === 'active' ? p.is_active : !p.is_active) }
+      ],
+      countLabel: (n, total) => n + ' of ' + total + ' products',
+      rowRenderer: prodRow,
+      emptyHtml: '<div class="fl-empty">No products match.</div>'
+    });
+    return `
+      <div class="hero"><div class="date mono">ADMIN · PRODUCTS</div><h1>Product catalog</h1>
+        <div class="sub">The catalog of products/medicines. Each drives the upload dropdown, the blob naming, and the product tag on every chunk. Deactivating hides a product from new uploads and access grants without deleting its history.</div></div>
+      <div class="prodtop"><button class="btn-dark" data-action="addprod">${ic('plus', 14)} Add product</button></div>
+      <div class="prodhead"><span>Product</span><span>Slug</span><span>Category</span><span>Type</span><span>Status</span><span></span></div>
+      ${list}
+      <div class="callout"><b>Slug is the immutable primary key</b> — baked into blob names and chunk metadata; renaming touches the display name only. Competitor products are first-class so objection-handling content can be indexed against them. Deactivate ≠ delete: history and existing chunks survive.</div>`;
+  }
+
+  function productModal(slug) {
+    const p = slug ? SVC.productBySlug(slug) : null;
+    const isEdit = !!p;
+    openModal(`<div class="mhd"><div><div class="mt">${ic(isEdit ? 'pencil' : 'plus', 20)} ${isEdit ? 'Edit product' : 'Add product'}</div><div class="msub">${isEdit ? esc(p.display_name) : 'Create a catalog entry'}</div></div><button class="x" data-action="close">${ic('x', 20)}</button></div>
+      <div class="mbody">
+        <div class="mrow">
+          <div class="fld"><label>Slug ${isEdit ? '<span class="lockpill">' + ic('lock', 11) + ' immutable</span>' : '<span class="req">*</span>'}</label>
+            ${isEdit ? `<input id="pmSlug" class="code" value="${esc(p.slug)}" readonly disabled>` : `<input id="pmSlug" class="code" placeholder="e.g. new-filler">`}
+            ${isEdit ? '' : '<div class="hint">Lowercase letters, numbers, hyphens. Immutable once created — it is baked into blob names + chunk metadata.</div>'}</div>
+          <div class="fld"><label>Display name <span class="req">*</span></label><input id="pmName" value="${isEdit ? esc(p.display_name) : ''}" placeholder="Display name"></div>
+        </div>
+        <div class="mrow">
+          <div class="fld"><label>Category</label><input id="pmCat" value="${isEdit ? esc(p.category) : ''}" placeholder="e.g. HA Filler"></div>
+          <div class="fld"><label>Sort order</label><input id="pmSort" type="number" value="${isEdit ? esc(p.sort_order) : items_len()}"></div>
+        </div>
+        <div class="fld"><label>Aliases (comma-separated)</label><input id="pmAliases" value="${isEdit ? esc((p.aliases || []).join(', ')) : ''}" placeholder="brandname, common misspelling"><div class="hint">Drives query-time entity matching, including misspellings.</div></div>
+        <div class="fld"><label>Description</label><textarea id="pmDesc" rows="2" placeholder="Short description">${isEdit ? esc(p.description) : ''}</textarea></div>
+        <div class="mrow">
+          <label class="chkline"><input type="checkbox" id="pmComp" ${isEdit && p.is_competitor ? 'checked' : ''}> Competitor product</label>
+          ${isEdit ? `<label class="chkline"><input type="checkbox" id="pmActive" ${p.is_active ? 'checked' : ''}> Active</label>` : ''}
+        </div>
+        <div class="merr" id="pmErr">Please complete the required fields.</div>
+        <div class="mactions"><button class="mbtn" data-action="close">Cancel</button><button class="mbtn primary" data-action="prodsave" ${isEdit ? `data-slug="${esc(slug)}"` : ''}>${isEdit ? 'Save changes' : 'Add product'}</button></div>
+      </div>`);
+  }
+  function items_len() { return SVC.products().length; }
+
+  function prodSave(slug) {
+    const v = (id) => (document.getElementById(id) || {}).value || '';
+    const chk = (id) => { const e = document.getElementById(id); return e ? e.checked : false; };
+    const data = { display_name: v('pmName'), category: v('pmCat'), sort_order: v('pmSort'), aliases: v('pmAliases'), description: v('pmDesc'), is_competitor: chk('pmComp') };
+    let res;
+    if (slug) { data.is_active = chk('pmActive'); res = SVC.updateProduct(slug, data); }
+    else { data.slug = v('pmSlug'); res = SVC.addProduct(data); }
+    if (!res.ok) { const e = document.getElementById('pmErr'); if (e) { e.textContent = res.error; e.classList.add('show'); } return; }
+    closeModal(); toast(slug ? 'Product updated' : 'Product added to the catalog', 'good'); render();
+  }
+
+  function kbUpload() {
+    const fileEl = document.getElementById('kbFile');
+    const prod = (document.getElementById('kbProduct') || {}).value || '';
+    const path = (document.getElementById('kbPath') || {}).value || '';
+    const file = fileEl && fileEl.files && fileEl.files[0];
+    const err = document.getElementById('kbErr');
+    if (!file || !prod) { if (err) { err.textContent = 'A file and a product are required.'; err.classList.add('show'); } return; }
+    const finish = (text) => {
+      const res = SVC.uploadDocument({ productSlug: prod, filename: file.name, blobPath: path, text: text });
+      if (!res.ok) { if (err) { err.textContent = res.error; err.classList.add('show'); } return; }
+      const id = res.doc.id;
+      S.kb.parsingDocId = id; S.kb.tab = 'active'; S.kb.fileName = ''; S.kb.product = '';
+      go('kb');
+      toast(res.replaced ? 'Replacing the document at that path — parsing & indexing…' : 'Uploading — parsing & indexing…', 'good');
+      setTimeout(() => { SVC.finalizeIngestion(id); if (S.kb.parsingDocId === id) S.kb.parsingDocId = null; render(); toast('Indexed — answers can now cite this document', 'good'); }, 2500);
+    };
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (ext === 'rtf' && file.text) { file.text().then(finish).catch(() => finish(null)); }
+    else finish(null);
+  }
+
+  /* =====================================================================
+     KNOWLEDGE BASE — vector store (KB-1..6)
+     ===================================================================== */
+  const STATUS_BADGE = {
+    parsing: '<span class="sbadge parsing">parsing…</span>',
+    active: '<span class="sbadge on">active</span>',
+    archived: '<span class="sbadge off">archived</span>',
+    failed: '<span class="sbadge fail">failed</span>'
+  };
+  function kbRow(d) {
+    const prod = SVC.productBySlug(d.product_slug);
+    const chunks = SVC.chunksForDocument(d.id).length;
+    const act = d.status === 'archived'
+      ? `<button class="btn-sm" data-action="kbrestore" data-id="${esc(d.id)}">${ic('refreshCw', 12)} Restore</button>`
+      : (d.status === 'active' ? `<button class="btn-sm warn" data-action="kbarchive" data-id="${esc(d.id)}">${ic('ban', 12)} Archive</button>` : '');
+    return `<div class="kbrow">
+      <span class="kbn">${ic('fileText', 15)}<span class="kbnm"><b>${esc(d.filename)}</b><span class="kbpath code">${esc(d.blob_path)}</span></span></span>
+      <span>${prod ? esc(prod.display_name) : esc(d.product_slug)}</span>
+      <span>${STATUS_BADGE[d.status] || esc(d.status)}</span>
+      <span class="kbc">${d.status === 'active' ? chunks + ' chunks' : (d.status === 'parsing' ? '—' : chunks + ' chunks')}</span>
+      <span class="kbd">${esc(d.uploaded_at || '—')}</span>
+      <span class="kba">${act}</span></div>`;
+  }
+  function viewKB() {
+    const f = S.kb;
+    const docs = SVC.documents();
+    const activeCount = docs.filter((d) => d.status !== 'archived').length;
+    const archivedCount = docs.filter((d) => d.status === 'archived').length;
+    const shown = docs.filter((d) => f.tab === 'archived' ? d.status === 'archived' : d.status !== 'archived');
+    const list = MerzUI.filteredListHtml({
+      items: shown, query: f.q, searchKeys: ['filename', 'blob_path'],
+      searchAction: 'kbsearch', searchId: 'kbInput', icon: ic('search', 16),
+      searchPlaceholder: 'Filter by path…',
+      countLabel: (n, total) => n + ' of ' + total + ' documents',
+      rowRenderer: kbRow,
+      emptyHtml: '<div class="fl-empty">No documents.</div>'
+    });
+    return `
+      <div class="hero"><div class="date mono">ADMIN · KNOWLEDGE BASE</div><h1>Knowledge base</h1>
+        <div class="sub">Every document in the vector store and its parse/embed status, newest first. Access to a document's answers is gated by the product it's namespaced under.</div></div>
+      <div class="prodtop">
+        <div class="kbtabs">
+          <button class="kbtab ${f.tab === 'active' ? 'on' : ''}" data-action="kbtab" data-t="active">Documents <span class="c">${activeCount}</span></button>
+          <button class="kbtab ${f.tab === 'archived' ? 'on' : ''}" data-action="kbtab" data-t="archived">Archived <span class="c">${archivedCount}</span></button>
+        </div>
+        <div class="kbtop-actions"><button class="btn-sm" data-action="kbrefresh">${ic('refreshCw', 13)} Refresh</button><button class="btn-dark" data-action="kbaddnav">${ic('plus', 14)} Add data to vector store</button></div>
+      </div>
+      <div class="kbhead"><span>Document</span><span>Product</span><span>Status</span><span>Chunks</span><span>Uploaded</span><span></span></div>
+      ${list}`;
+  }
+  function viewKBAdd() {
+    const parsing = S.kb.parsingDocId && SVC.documents().find((d) => d.id === S.kb.parsingDocId && d.status === 'parsing');
+    const prodOpts = SVC.activeProducts().map((p) => `<option value="${esc(p.slug)}" ${S.kb.product === p.slug ? 'selected' : ''}>${esc(p.display_name)}${p.is_competitor ? ' (competitor)' : ''}</option>`).join('');
+    const chips = SVC.FILE_TYPES.map((t) => `<span class="ftchip">${t.toUpperCase()}</span>`).join('');
+    return `
+      <div class="hero"><div class="date mono">ADMIN · KNOWLEDGE BASE</div><h1>Add data to vector store</h1>
+        <div class="sub">Upload a document to add it to the product knowledge base. Files are parsed, embedded, and indexed automatically — allow ~30–90 seconds before answers can cite it. Re-uploading the same path replaces that document.</div></div>
+      <button class="backbtn" data-action="nav" data-view="kb">${ic('arrowLeft', 15)} Back to knowledge base</button>
+      ${parsing ? `<div class="mbanner blue" style="margin:12px 0">${ic('refreshCw', 16)}<span><b>${esc(parsing.filename)}</b> is parsing, embedding and indexing… it will appear as <b>Active</b> in the list shortly.</span></div>` : ''}
+      <div class="kbform">
+        <label class="kbfield"><span class="kbl">Document <span class="req">*</span></span>
+          <label class="kbdrop" id="kbDrop"><input type="file" id="kbFile" accept=".pdf,.pptx,.ppt,.docx,.doc,.odp,.odt,.ods,.xlsx,.xls,.rtf">
+            <span class="kbdrop-in">${ic('fileText', 22)}<span class="kbdrop-t">${S.kb.fileName ? esc(S.kb.fileName) : 'Drag &amp; drop or browse'}</span><span class="kbdrop-s">A single document, up to a few hundred pages</span></span></label>
+          <div class="ftchips">${chips}</div></label>
+        <label class="kbfield"><span class="kbl">Product <span class="req">*</span></span>
+          <select id="kbProduct" data-action="kbprod"><option value="">Select a product…</option>${prodOpts}</select>
+          <span class="hint">The document is namespaced by product so retrieval can scope it and gate access.</span></label>
+        <label class="kbfield"><span class="kbl">Blob path <span class="opt">optional</span></span>
+          <input id="kbPath" class="code" placeholder="defaults to the filename">
+          <span class="hint">The path is the document's identity. Reuse a path to update one; use distinct paths for distinct documents.</span></label>
+        <div class="merr" id="kbErr">A file and a product are required.</div>
+        <button class="mbtn primary kbsubmit" data-action="kbupload">${ic('layers', 14)} Upload to knowledge base</button>
+      </div>`;
   }
 
   /* =====================================================================
@@ -720,7 +1165,8 @@
       </div>
       <div class="seclbl mono">CERTIFICATION BY BRAND</div>
       <div class="certgrid">${cards}</div>
-      <div class="cta-assess"><div><div class="h">Ready to take your assessment?</div><div class="d">A short, source-grounded knowledge check. Auto-scored against the ${S.assess.threshold}% threshold. A fail can be re-taken — this is a training tool, not a gate.</div></div>
+      ${(function () { const sv = load('merz_assessrun', null); return sv && !sv.done ? `<div class="resume-banner">${ic('refreshCw', 16)}<span>You have an assessment in progress (question ${(sv.idx || 0) + 1}). Your answers are saved.</span><button class="mbtn primary" data-action="resumeassess">Resume</button></div>` : ''; })()}
+      <div class="cta-assess"><div><div class="h">Ready to take your assessment?</div><div class="d">A short, source-grounded knowledge check. Choose an official attempt (counts toward certification) or a practice run. Auto-scored against the ${S.assess.threshold}% threshold. A fail can be re-taken — this is a training tool, not a gate.</div></div>
         <button class="mbtn primary" data-action="startassess">${ic('play', 16)} Take assessment</button></div>
       <div class="seclbl mono">ASSESSMENT HISTORY</div>
       <div class="panel">${history}</div>
@@ -729,61 +1175,106 @@
 
   /* ---- assessment runner (overlay) --------------------------------------- */
   function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
-  function startAssess() {
+  const CONF_LABELS = ['Not sure', 'Fairly sure', 'Very sure'];
+  function buildRunQs() {
     const prof = PROFILES[S.assess.cert.profile];
     let pool = allQuestions().filter((q) => prof.brands.indexOf(q.product) !== -1 && qStatus(q) === 'active');
     pool = shuffle(pool.slice());
-    const qs = pool.slice(0, Math.min(6, pool.length));
-    S.assess.run = { qs, idx: 0, answers: new Array(qs.length).fill(null), done: false };
-    openAssess();
+    return pool.slice(0, Math.min(S.assess.perAttempt || 6, pool.length));
   }
+  function startAssess() {
+    const qs = buildRunQs();
+    S.assess.run = { qids: qs.map((q) => q.id), idx: 0, answers: new Array(qs.length).fill(null), confidence: new Array(qs.length).fill(null), official: true, stage: 'intro', done: false };
+    saveRun(); openAssess();
+  }
+  // Rehydrate qs objects for the live run (qids are what we persist).
+  function runQs() { const r = S.assess.run; if (!r) return []; if (r.qs) return r.qs; return (r.qids || []).map((id) => allQuestions().find((q) => q.id === id)).filter(Boolean); }
+  function saveRun() { if (S.assess.run) save('merz_assessrun', { qids: S.assess.run.qids || (S.assess.run.qs || []).map((q) => q.id), idx: S.assess.run.idx, answers: S.assess.run.answers, confidence: S.assess.run.confidence, official: S.assess.run.official, stage: S.assess.run.stage, done: S.assess.run.done }); }
+  function clearRun() { S.assess.run = null; try { localStorage.removeItem('merz_assessrun'); } catch (e) {} }
+  function resumeAssess() { const saved = load('merz_assessrun', null); if (!saved) return; S.assess.run = saved; openAssess(); }
   function openAssess() { closeAssess(); const ov = document.createElement('div'); ov.className = 'assess-overlay'; ov.id = 'assessov'; ov.innerHTML = assessHtml(); document.body.appendChild(ov); }
   function closeAssess() { const o = document.getElementById('assessov'); if (o) o.remove(); }
-  function reAssess() { const o = document.getElementById('assessov'); if (o) o.innerHTML = assessHtml(); }
+  function reAssess() { saveRun(); const o = document.getElementById('assessov'); if (o) o.innerHTML = assessHtml(); }
   function scoreRun() {
-    const run = S.assess.run, perBrand = {}; let correct = 0;
-    run.qs.forEach((q, i) => { const ok = run.answers[i] === q.correct; if (ok) correct++; (perBrand[q.product] = perBrand[q.product] || { c: 0, t: 0 }).t++; if (ok) perBrand[q.product].c++; });
-    return { correct, total: run.qs.length, pct: Math.round(correct / run.qs.length * 100), perBrand };
+    const run = S.assess.run, qs = runQs(), perBrand = {}; let correct = 0, confMiss = 0;
+    qs.forEach((q, i) => { const ok = run.answers[i] === q.correct; if (ok) correct++; else if (run.confidence[i] === 2) confMiss++; (perBrand[q.product] = perBrand[q.product] || { c: 0, t: 0 }).t++; if (ok) perBrand[q.product].c++; });
+    return { correct, total: qs.length, pct: Math.round(correct / qs.length * 100), perBrand, confMiss };
   }
   const plusMonths = (m) => (m >= 6 ? '10 Jan 2027' : '10 Oct 2026');
   function applyResult(res) {
-    const c = S.assess.cert, pass = res.pct >= S.assess.threshold;
-    Object.keys(res.perBrand).forEach((b) => {
-      const pb = res.perBrand[b], bp = Math.round(pb.c / pb.t * 100);
-      c.brands[b] = Object.assign(c.brands[b] || {}, bp >= S.assess.threshold
-        ? { status: 'certified', score: bp, certifiedAt: TODAY, expiresAt: plusMonths(c.cadence) }
-        : { status: 'failed', score: bp });
-    });
-    c.history.unshift({ date: TODAY, type: 'Recertification', score: res.pct, result: pass ? 'Passed' : 'Failed' });
-    if (pass) c.nextDue = plusMonths(c.cadence);
+    const run = S.assess.run, pass = res.pct >= S.assess.threshold;
+    // Log the attempt (official vs practice split preserved for the monitor).
+    S.assess.attempts = S.assess.attempts || [];
+    S.assess.attempts.unshift({ date: TODAY, official: !!run.official, score: res.pct, passed: pass });
+    // Practice attempts NEVER change certification or the next-due date.
+    if (run.official) {
+      const c = S.assess.cert;
+      Object.keys(res.perBrand).forEach((b) => {
+        const pb = res.perBrand[b], bp = Math.round(pb.c / pb.t * 100);
+        c.brands[b] = Object.assign(c.brands[b] || {}, bp >= S.assess.threshold
+          ? { status: 'certified', score: bp, certifiedAt: TODAY, expiresAt: plusMonths(c.cadence) }
+          : { status: 'failed', score: bp });
+      });
+      c.history.unshift({ date: TODAY, type: 'Recertification', score: res.pct, result: pass ? 'Passed' : 'Failed' });
+      if (pass) c.nextDue = plusMonths(c.cadence); // auto-recertify + recompute due
+    }
     saveAssess();
   }
   function assessHtml() {
     const run = S.assess.run;
     if (!run) return '';
+    const qs = runQs();
+    const prof = PROFILES[S.assess.cert.profile];
+
+    // ---- Intro / pre-flight (ATAKE-1): shape of the attempt + official/practice
+    if (run.stage === 'intro') {
+      const brandNames = prof.brands.map((b) => PRODUCTS[b].name).join(', ');
+      return `<div class="assess-card">
+        <div class="assess-hd"><div class="at">${ic('graduationCap', 18)} Take assessment</div><button class="x" data-action="assessclose">${ic('x', 20)}</button></div>
+        <div class="assess-body">
+          <div class="preflight">
+            <div class="pf-row"><span class="pf-l">Questions</span><b>${qs.length}</b></div>
+            <div class="pf-row"><span class="pf-l">Products covered</span><b>${esc(brandNames)}</b></div>
+            <div class="pf-row"><span class="pf-l">Pass threshold</span><b>${S.assess.threshold}%</b></div>
+          </div>
+          <div class="seclbl mono" style="margin-top:14px">ATTEMPT TYPE</div>
+          <div class="attempt-toggle">
+            <button class="att ${run.official ? 'on' : ''}" data-action="assessofficial" data-v="1"><b>${ic('shieldCheck', 15)} Official</b><span>Counts toward certification</span></button>
+            <button class="att ${!run.official ? 'on' : ''}" data-action="assessofficial" data-v="0"><b>${ic('play', 15)} Practice</b><span>Score + review only — no cert change</span></button>
+          </div>
+          <div class="mactions" style="margin-top:16px"><button class="mbtn" data-action="assessclose">Cancel</button><button class="mbtn primary" data-action="assessbegin">Start assessment ${ic('chevronRight', 15)}</button></div>
+        </div></div>`;
+    }
+
+    // ---- Results (ATAKE-5,6,7)
     if (run.done) {
       const res = scoreRun(), pass = res.pct >= S.assess.threshold;
       const brands = Object.keys(res.perBrand).map((b) => { const pb = res.perBrand[b], bp = Math.round(pb.c / pb.t * 100); return `<div class="abrk"><span class="l">${brandLetter(b)}</span><span>${PRODUCTS[b].name}</span><div class="bar-wrap"><div class="bar-fill" style="width:${bp}%"></div></div><b>${bp}%</b></div>`; }).join('');
-      const missed = run.qs.map((q, i) => run.answers[i] === q.correct ? '' :
-        `<div class="missed"><div class="mq">${ic('xCircle', 14)} ${esc(q.stem)}</div><div class="ma">Correct: <b>${esc(q.options[q.correct])}</b></div><div class="msrc">${ic('fileText', 12)} ${esc(q.source_ref)}</div></div>`).join('');
+      const missed = qs.map((q, i) => run.answers[i] === q.correct ? '' :
+        `<div class="missed"><div class="mq">${ic('xCircle', 14)} ${esc(q.stem)}${run.confidence[i] === 2 ? '<span class="confmiss">answered “Very sure”</span>' : ''}</div><div class="ma">Your answer: ${run.answers[i] != null ? esc(q.options[run.answers[i]]) : '—'} · Correct: <b>${esc(q.options[q.correct])}</b></div><div class="mexp">${esc(q.explanation)}</div><div class="msrc">${ic('fileText', 12)} ${esc(q.source_ref)}</div></div>`).join('');
       return `<div class="assess-card">
-        <div class="assess-hd"><div class="at">Assessment result</div><button class="x" data-action="assessclose">${ic('x', 20)}</button></div>
+        <div class="assess-hd"><div class="at">Assessment result <span class="attpill ${run.official ? 'off' : 'prac'}">${run.official ? 'OFFICIAL' : 'PRACTICE'}</span></div><button class="x" data-action="assessclose">${ic('x', 20)}</button></div>
         <div class="assess-body">
-          <div class="result-hero ${pass ? 'pass' : 'fail'}">${ic(pass ? 'trophy' : 'refreshCw', 30)}<div><div class="rh-top">${res.pct}% · ${res.correct}/${res.total} correct</div><div class="rh-sub">${pass ? 'Passed — above the ' + S.assess.threshold + '% threshold' : 'Below the ' + S.assess.threshold + '% threshold — you can re-take'}</div></div></div>
+          <div class="result-hero ${pass ? 'pass' : 'fail'}">${ic(pass ? 'trophy' : 'refreshCw', 30)}<div><div class="rh-top">${res.pct}% · ${res.correct}/${res.total} correct</div><div class="rh-sub">${pass ? 'Passed — above the ' + S.assess.threshold + '% threshold' : 'Below the ' + S.assess.threshold + '% threshold — you can re-take'}${run.official ? '' : ' · practice: certification unchanged'}</div></div></div>
+          ${res.confMiss ? `<div class="mbanner blue" style="margin-top:10px">${ic('info', 16)}<span>${res.confMiss} answer${res.confMiss > 1 ? 's were' : ' was'} wrong but marked “Very sure” — a confidence gap worth revisiting, not just a knowledge gap.</span></div>` : ''}
           <div class="seclbl mono" style="margin-top:6px">SCORE BY BRAND</div>${brands}
           ${missed ? `<div class="seclbl mono" style="margin-top:14px">REVIEW YOUR WEAK AREAS</div>${missed}` : `<div class="mbanner green" style="margin-top:14px">${ic('checkCircle', 16)}<span>Perfect run — no weak areas to review.</span></div>`}
           <div class="mactions" style="margin-top:16px">${pass ? '' : `<button class="mbtn" data-action="startassess">${ic('refreshCw', 15)} Retake</button>`}<button class="mbtn primary" data-action="assessclose">Done</button></div>
         </div></div>`;
     }
-    const q = run.qs[run.idx], p = PRODUCTS[q.product], answered = run.answers[run.idx] != null, last = run.idx === run.qs.length - 1;
+
+    // ---- Question screen (one at a time, single-choice + confidence)
+    const q = qs[run.idx], p = PRODUCTS[q.product], answered = run.answers[run.idx] != null, last = run.idx === qs.length - 1;
     const opts = q.options.map((o, i) => `<button class="aopt ${run.answers[run.idx] === i ? 'sel' : ''}" data-action="apick" data-i="${i}"><span class="ab">${String.fromCharCode(65 + i)}</span><span>${esc(o)}</span></button>`).join('');
+    const conf = CONF_LABELS.map((l, i) => `<button class="confopt ${run.confidence[run.idx] === i ? 'on' : ''}" data-action="aconf" data-i="${i}">${esc(l)}</button>`).join('');
     return `<div class="assess-card">
-      <div class="assess-hd"><div class="at">${ic('graduationCap', 18)} Assessment · ${PROFILES[S.assess.cert.profile].label}</div><button class="x" data-action="assessclose">${ic('x', 20)}</button></div>
-      <div class="assess-prog"><div class="assess-prog-txt">Question ${run.idx + 1} of ${run.qs.length}</div><div class="prog-wrap"><div class="prog-fill" style="width:${(run.idx + 1) / run.qs.length * 100}%"></div></div></div>
+      <div class="assess-hd"><div class="at">${ic('graduationCap', 18)} ${run.official ? 'Official' : 'Practice'} · ${prof.label}</div><button class="x" data-action="assessclose">${ic('x', 20)}</button></div>
+      <div class="assess-prog"><div class="assess-prog-txt">Question ${run.idx + 1} of ${qs.length}</div><div class="prog-wrap"><div class="prog-fill" style="width:${(run.idx + 1) / qs.length * 100}%"></div></div></div>
       <div class="assess-body">
-        <div class="qmeta"><span class="qtag" style="background:${p.bg};color:${p.color}">${p.letter} ${p.name}</span><span class="qdiff">${esc(q.difficulty)}</span><span class="qtopic">${esc(q.topic)}</span></div>
+        <div class="qmeta"><span class="qtag" style="background:${p.bg};color:${p.color}">${p.letter} ${p.name}</span><span class="qdiff">${esc(q.difficulty)}</span><span class="qtopic">${esc(q.topic)}</span><span class="qid mono">${esc(q.id)}</span></div>
         <div class="qstem">${esc(q.stem)}</div>
         <div class="aopts">${opts}</div>
+        <div class="confbox"><span class="confl mono">HOW SURE ARE YOU?</span><div class="confopts">${conf}</div></div>
         <div class="assess-foot">
           ${run.idx > 0 ? `<button class="mbtn" data-action="assessprev">${ic('chevronLeft', 15)} Back</button>` : '<span></span>'}
           <button class="mbtn primary" data-action="${last ? 'assesssubmit' : 'assessnext'}" ${answered ? '' : 'disabled'}>${last ? 'Submit' : 'Next'} ${ic('chevronRight', 15)}</button>
@@ -813,6 +1304,7 @@
         <div class="dq-acts"><button class="btn-sm" data-action="qreject" data-id="${q.id}">${ic('x', 13)} Reject</button><button class="btn-dark" data-action="qapprove" data-id="${q.id}">${ic('check', 13)} Approve &amp; activate</button></div></div>`).join('')}</div>` : '';
 
     const poolPanel = `<div class="panel"><h3>Question pools <span class="flt">preset / AI blend per product</span></h3>
+      <div class="poolrow perattempt"><span>Questions per attempt</span><span class="stepper"><button class="btn-sm sq" data-action="perattempt" data-d="-1">−</button><b>${S.assess.perAttempt}</b><button class="btn-sm sq" data-action="perattempt" data-d="1">+</button></span></div>
       ${Object.keys(S.assess.pools).map((pk) => { const pc = S.assess.pools[pk], p = PRODUCTS[pk]; return `<div class="poolrow"><span class="qtag" style="background:${p.bg};color:${p.color}">${p.letter} ${p.name}</span>
         <span class="poolcount">${pc.preset} preset · ${pc.ai} AI</span>
         <div class="mixctl"><span class="mono" style="color:var(--gray)">PRESET ${pc.mix}%</span><input type="range" min="0" max="100" value="${pc.mix}" data-action="poolmix" data-p="${pk}"><span class="mono" style="color:var(--gray)">AI ${100 - pc.mix}%</span></div></div>`; }).join('')}
@@ -1087,7 +1579,10 @@
     ask: (d) => askQuestion(d.q || (d.entry && (KB.concat(OBJECTIONS).find((e) => e.id === d.entry) || {}).q), d.entry),
     askclose: (d) => { closeModal(); askQuestion(d.q); },
     asksend: () => { const i = $('#askInput'); if (i) askQuestion(i.value); },
-    prod: (d) => askQuestion('Tell me about ' + PRODUCTS[d.product].name),
+    prod: (d) => openBrand(d.product),
+    openbrand: (d) => openBrand(d.product),
+    openthread: (d) => openThread(d.cid),
+    histsearch: () => { const i = $('#histInput'); if (i) { S.hist.q = i.value; render(); } },
     dismiss: (d) => { if (S.dismissed.indexOf(d.id) === -1) S.dismissed.push(d.id); save('merz_dismissed', S.dismissed); render(); },
     dyncard: () => { go('lib'); toast('Opened the updated document in the Library', 'good'); },
     bell: () => notifications(),
@@ -1107,7 +1602,7 @@
       else { S.saved.splice(idx, 1); toast('Removed from saved', 'warn'); }
       save('merz_saved', S.saved); render();
     },
-    fb: (d) => toast(d.v === 'up' ? 'Thanks — marked helpful' : 'Noted — flagged as not helpful for review', d.v === 'up' ? 'good' : 'warn'),
+    fb: (d) => { SVC.recordFeedback(d.v); toast(d.v === 'up' ? 'Thanks — marked helpful' : 'Noted — flagged as not helpful for review', d.v === 'up' ? 'good' : 'warn'); },
     flag: () => toast('Flagged for Medical Affairs review', 'warn'),
     askma: (d) => askMA(d.q),
     masubmit: () => maSubmit(),
@@ -1159,10 +1654,14 @@
     // Part B — assessment (rep)
     startassess: () => startAssess(),
     apick: (d) => { S.assess.run.answers[S.assess.run.idx] = +d.i; reAssess(); },
-    assessnext: () => { if (S.assess.run.idx < S.assess.run.qs.length - 1) { S.assess.run.idx++; reAssess(); } },
+    aconf: (d) => { S.assess.run.confidence[S.assess.run.idx] = +d.i; reAssess(); },
+    assessofficial: (d) => { S.assess.run.official = d.v === '1'; reAssess(); },
+    assessbegin: () => { S.assess.run.stage = 'run'; reAssess(); },
+    resumeassess: () => resumeAssess(),
+    assessnext: () => { const n = runQs().length; if (S.assess.run.idx < n - 1) { S.assess.run.idx++; reAssess(); } },
     assessprev: () => { if (S.assess.run.idx > 0) { S.assess.run.idx--; reAssess(); } },
-    assesssubmit: () => { S.assess.run.done = true; applyResult(scoreRun()); reAssess(); },
-    assessclose: () => { closeAssess(); S.assess.run = null; render(); },
+    assesssubmit: () => { S.assess.run.done = true; S.assess.run.stage = 'done'; applyResult(scoreRun()); saveRun(); reAssess(); },
+    assessclose: () => { closeAssess(); clearRun(); render(); },
     // Part B — assessment (admin)
     admintab: (d) => { S.adminTab = d.t; render(); },
     gotodrafts: () => { S.adminTab = 'questions'; go('assess'); },
@@ -1176,8 +1675,27 @@
     saveq: () => saveQuestion(),
     poolmix: (d, el) => { S.assess.pools[d.p].mix = +el.value; saveAssess(); const r = el.closest('.mixctl'); if (r) { r.querySelector('.mono').innerHTML = 'PRESET ' + el.value + '%'; r.querySelectorAll('.mono')[1].innerHTML = 'AI ' + (100 - el.value) + '%'; } },
     thresh: (d) => { S.assess.threshold = Math.max(50, Math.min(100, S.assess.threshold + (+d.d))); saveAssess(); render(); },
+    perattempt: (d) => { S.assess.perAttempt = Math.max(3, Math.min(50, S.assess.perAttempt + (+d.d))); saveAssess(); render(); },
     adhoc: () => { closeModal(); toast('Ad-hoc assessment triggered (demo)', 'good'); },
     repdrill: (d) => repDrill(+d.i),
+    // Products (catalog)
+    addprod: () => productModal(null),
+    editprod: (d) => productModal(d.slug),
+    deactprod: (d) => { SVC.setProductActive(d.slug, false); toast('Product deactivated — hidden from new uploads and grants; history kept', 'warn'); render(); },
+    reactprod: (d) => { SVC.setProductActive(d.slug, true); toast('Product reactivated', 'good'); render(); },
+    prodsearch: () => { const i = $('#prodInput'); if (i) { S.prodFilter.q = i.value; render(); } },
+    prodftype: () => { const o = ['all', 'own', 'competitor']; S.prodFilter.type = o[(o.indexOf(S.prodFilter.type) + 1) % o.length]; render(); },
+    prodfstat: () => { const o = ['all', 'active', 'archived']; S.prodFilter.status = o[(o.indexOf(S.prodFilter.status) + 1) % o.length]; render(); },
+    prodsave: (d) => prodSave(d.slug),
+    // Knowledge base
+    kbaddnav: () => { S.kb.fileName = ''; S.kb.product = ''; go('kbadd'); },
+    kbtab: (d) => { S.kb.tab = d.t; render(); },
+    kbsearch: () => { const i = $('#kbInput'); if (i) { S.kb.q = i.value; render(); } },
+    kbrefresh: () => { render(); toast('Knowledge base refreshed', 'good'); },
+    kbprod: (d, el) => { S.kb.product = el.value; },
+    kbupload: () => kbUpload(),
+    kbarchive: (d) => { SVC.archiveDocument(d.id); toast('Document archived — hidden from answers; history kept', 'warn'); render(); },
+    kbrestore: (d) => { SVC.unarchiveDocument(d.id); toast('Document restored to the vector store', 'good'); render(); },
     close: () => closeModal()
   };
 
@@ -1191,30 +1709,61 @@
     const el = ev.target.closest('[data-action="poolmix"]');
     if (el && ACTIONS.poolmix) ACTIONS.poolmix(el.dataset, el, ev);
   });
+  document.addEventListener('change', (ev) => {
+    if (ev.target.id === 'kbFile') {
+      const f = ev.target.files && ev.target.files[0];
+      const t = document.querySelector('#kbDrop .kbdrop-t');
+      if (t) t.textContent = f ? f.name : 'Drag & drop or browse';
+    }
+  });
+  function wireKbDrop() {
+    const drop = document.getElementById('kbDrop'), fi = document.getElementById('kbFile');
+    if (!drop || !fi) return;
+    ['dragover', 'dragenter'].forEach((e) => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.add('drag'); }));
+    ['dragleave', 'dragend'].forEach((e) => drop.addEventListener(e, () => drop.classList.remove('drag')));
+    drop.addEventListener('drop', (ev) => {
+      ev.preventDefault(); drop.classList.remove('drag');
+      if (ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files.length) {
+        try { fi.files = ev.dataTransfer.files; } catch (_) {}
+        const t = drop.querySelector('.kbdrop-t'); if (t) t.textContent = ev.dataTransfer.files[0].name;
+      }
+    });
+  }
   document.addEventListener('keydown', (ev) => {
     if (ev.key !== 'Enter') return;
     if (ev.target.id === 'askInput') { ev.preventDefault(); askQuestion(ev.target.value); }
     if (ev.target.id === 'libInput') { ev.preventDefault(); S.lib.q = ev.target.value; render(); }
+    if (ev.target.id === 'prodInput') { ev.preventDefault(); S.prodFilter.q = ev.target.value; render(); }
+    if (ev.target.id === 'kbInput') { ev.preventDefault(); S.kb.q = ev.target.value; render(); }
+    if (ev.target.id === 'histInput') { ev.preventDefault(); S.hist.q = ev.target.value; render(); }
   });
 
   /* =====================================================================
      RENDER
      ===================================================================== */
-  const VIEWS = { home: viewHome, chat: viewChat, lib: viewLibrary, cert: viewCert, mgr: viewManager, adm: viewAdmin, assess: viewAssess };
+  const VIEWS = { home: viewHome, chat: viewHistory, thread: viewChat, brand: viewBrand, lib: viewLibrary, cert: viewCert, mgr: viewManager, adm: viewAdmin, assess: viewAssess, products: viewProducts, kb: viewKB, kbadd: viewKBAdd };
   function render() {
     if (!S.authed) { app().innerHTML = viewLogin(); return; }
     if (S.view === 'onboard') { app().innerHTML = viewOnboard(); return; }
+    syncSession();
     const role = roleOfView(S.view);
     const active = S.view;
     let activeProduct = null;
-    if (S.view === 'chat' && S.chat && S.chat.turns && S.chat.turns.length) {
+    if (S.view === 'thread' && S.chat && S.chat.turns && S.chat.turns.length) {
       const last = S.chat.turns[S.chat.turns.length - 1];
       if (last.resolved && last.resolved.entry) activeProduct = last.resolved.entry.product;
     }
+    if (S.view === 'brand') activeProduct = S.brandView;
     const content = (VIEWS[S.view] || viewHome)();
     app().innerHTML = `<div class="shell${S.navOpen ? ' nav-open' : ''}">${sidebar(role, active, activeProduct)}<div class="nav-backdrop" data-action="closenav"></div><div class="workarea">${appbar(role)}<main class="main">${content}</main></div></div>`;
     if (S.view === 'lib') { const i = $('#libInput'); if (i && S.lib.q) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+    if (S.view === 'products') { const i = $('#prodInput'); if (i && S.prodFilter.q) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+    if (S.view === 'kb') { const i = $('#kbInput'); if (i && S.kb.q) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+    if (S.view === 'chat') { const i = $('#histInput'); if (i && S.hist.q) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+    if (S.view === 'kbadd') wireKbDrop();
   }
 
+  SVC.init();               // seed the service store (Part E) + session
+  syncAccessFromUsers();    // write the signed-in rep's brand grants through the service
   render();
 })();
